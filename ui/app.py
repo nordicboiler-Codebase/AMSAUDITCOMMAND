@@ -275,6 +275,32 @@ def risk_view() -> None:
     if not dsid:
         st.warning("Set active dataset ID in the sidebar.")
         return
+
+    col_a, col_b = st.columns([3, 1])
+    with col_a:
+        st.caption("Ensemble scoring aggregates every completed test run on this dataset.")
+    with col_b:
+        if st.button("Run / refresh ensemble"):
+            runs_resp = api_get(f"/api/datasets/{dsid}/runs")
+            if runs_resp.status_code != 200:
+                st.error(f"Could not list runs: {runs_resp.text}")
+            else:
+                completed = [r["id"] for r in runs_resp.json() if r.get("status") == "COMPLETED"]
+                if not completed:
+                    st.warning("No completed test runs yet. Run a template or pack first.")
+                else:
+                    ens = api_post("/api/ensemble", json={
+                        "dataset_id": dsid, "test_run_ids": completed,
+                    })
+                    if ens.status_code == 200:
+                        s = ens.json().get("summary", {})
+                        st.success(
+                            f"Ensemble complete: {s.get('records_scored', 0)} records | "
+                            f"max={round(s.get('max_score', 0), 1)} mean={round(s.get('mean_score', 0), 1)}"
+                        )
+                    else:
+                        st.error(ens.text)
+
     min_score = st.slider("Minimum score", 0, 100, 50)
     r = api_get(f"/api/datasets/{dsid}/risk-scores",
                 params={"min_score": min_score, "limit": 200, "sort": "desc"})
