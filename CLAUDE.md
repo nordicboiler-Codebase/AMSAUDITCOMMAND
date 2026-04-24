@@ -70,8 +70,38 @@ data/                # uploads, parquet, reports (gitignored)
 
 ## Current phase
 
-**P1 MVP (weeks 1-7)** — scaffold, DB models, audit log, import, first 20 detectors,
-first 50 templates.
+**Phase A — Table stakes complete.** On top of the P1 MVP (35 detectors, 143 templates,
+10 packs, ensemble scoring, tamper-evident audit log, Streamlit UI), the following
+enterprise controls are now in place:
+
+1. **Single Sign-On (OAuth2)** — configurable in-app under Settings → SSO; Azure AD preset,
+   also supports Google / Okta / generic OIDC. Auto-provisions users on first login with
+   configurable allowed domains + default role.
+2. **MFA (TOTP)** — enrol via Settings → My MFA (QR + provisioning URI). Login flow
+   detects mfa-enabled users and requests a 6-digit code via `/api/auth/mfa/verify`.
+3. **Email (modern authentication)** — configurable under Settings → Email. Supports
+   SMTP (optionally with XOAUTH2 client-credentials) or Microsoft Graph `sendMail`
+   (OAuth2 app-only). Includes a "Send test email" admin button.
+4. **Project-level access control** — `project_members` table, roles OWNER/EDITOR/
+   REVIEWER/VIEWER, permission matrix enforced on projects, datasets, runs, packs,
+   ensemble, risk scores, findings. Project owners + ADMIN can manage membership.
+5. **Findings Register + maker-checker** — `findings` table with statuses
+   DRAFT → UNDER_REVIEW → CONFIRMED/FALSE_POSITIVE → REMEDIATED/ACCEPTED_RISK/
+   CARRIED_FORWARD. Reviewer transitions require REVIEW permission and reviewer
+   must not be the creator/owner of the finding. Comments with sign-off flag.
+6. **Data retention policy** — configurable in Settings → Data Retention. Per-subledger
+   days override global default. Dry-run scan + irreversible purge (ADMIN only). Optionally
+   preserves datasets referenced by open findings. All purges logged to audit_log.
+7. **Charts in PDF reports** — Benford distributions, aging histograms, Pareto charts,
+   risk-score distributions, inlined as SVG in template + pack report PDFs via matplotlib
+   + WeasyPrint.
+8. **UX polish** — spinners + toast notifications on long ops (import, pack run, ensemble);
+   parsed `{detail: ...}` error surfacing (no raw tracebacks).
+9. **Encrypted uploads at rest** — raw source files are stored Fernet-encrypted in
+   `data/uploads/`; plaintext only exists as a short-lived temp file during import.
+
+Next phase slices (not yet done): ERP connectors (SAP/Oracle), Arabic i18n, continuous
+monitoring / scheduled runs, Power BI export, engagement workspace.
 
 ## Commands
 
