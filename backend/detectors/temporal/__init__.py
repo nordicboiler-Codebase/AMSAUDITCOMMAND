@@ -51,15 +51,15 @@ class WeekendTransactionsDetector:
         if filter_field and filter_field in df.columns and filter_value is not None:
             df2 = df2.filter(pl.col(filter_field) == filter_value)
         date_col = df2[dfield].cast(pl.Date, strict=False)
-        dows = date_col.dt.weekday().to_list() if date_col.len() else []
         dates = date_col.to_list()
         keys = df2["_record_key"].to_list()
         flagged_keys: list[str] = []
         reasons: dict[str, str] = {}
-        for k, d, w in zip(keys, dates, dows):
+        for k, d in zip(keys, dates):
             if d is None:
                 continue
-            if w is not None and w in weekend_days:
+            wd = d.weekday() if hasattr(d, "weekday") else None
+            if wd is not None and wd in weekend_days:
                 flagged_keys.append(k)
                 reasons[k] = f"weekend posting ({d.strftime('%A') if hasattr(d, 'strftime') else d})"
             elif d in holidays:

@@ -157,50 +157,33 @@ def test_catalog_registers_all_detectors(detector_catalog):
 def test_detector_runs_without_error(detector_catalog, sample_df, detector_name):
     detector = detector_catalog.get(detector_name)
     params = dict(detector.default_params)
+    overrides = {
+        "required_fields": ["description"],
+        "numeric_fields": ["amount"],
+        "numeric_field": "amount",
+        "amount_field": "amount",
+        "date_field": "date",
+        "datetime_field": "payment_datetime",
+        "grouping_field": "vendor_id",
+        "group_field": "vendor_id",
+        "key_fields": ["vendor_id", "invoice_no"],
+        "key_field": "invoice_no",
+        "category_field": "category",
+        "text_field": "description",
+        "keywords": ["test"],
+        "feature_fields": ["amount"],
+        "field_a": "vendor_id",
+        "field_b": "gl_account",
+        "same_fields": ["invoice_no"],
+        "different_field": "vendor_id",
+        "child_field": "ref_invoice_no",
+        "parent_values": sample_df["invoice_no"].to_list(),
+        "field": "amount",
+    }
     for k, v in list(params.items()):
         if v in ("", None) or (isinstance(v, list) and not v):
-            if "field" in k and k != "required_fields":
-                params[k] = "amount"
-            elif k == "required_fields":
-                params[k] = ["description"]
-            elif k == "numeric_fields":
-                params[k] = ["amount"]
-            elif k == "numeric_field":
-                params[k] = "amount"
-            elif k == "amount_field":
-                params[k] = "amount"
-            elif k == "date_field":
-                params[k] = "date"
-            elif k == "datetime_field":
-                params[k] = "payment_datetime"
-            elif k == "grouping_field":
-                params[k] = "vendor_id"
-            elif k == "group_field":
-                params[k] = "vendor_id"
-            elif k == "key_fields":
-                params[k] = ["vendor_id"]
-            elif k == "key_field":
-                params[k] = "invoice_no"
-            elif k == "category_field":
-                params[k] = "category"
-            elif k == "text_field":
-                params[k] = "description"
-            elif k == "keywords":
-                params[k] = ["test"]
-            elif k == "feature_fields":
-                params[k] = ["amount"]
-            elif k == "field_a":
-                params[k] = "vendor_id"
-            elif k == "field_b":
-                params[k] = "gl_account"
-            elif k == "same_fields":
-                params[k] = ["invoice_no"]
-            elif k == "different_field":
-                params[k] = "vendor_id"
-            elif k == "child_field":
-                params[k] = "ref_invoice_no"
-            elif k == "parent_values":
-                params[k] = sample_df["invoice_no"].to_list()
+            if k in overrides:
+                params[k] = overrides[k]
     result = detector.run(sample_df, params)
     assert result is not None
     assert isinstance(result.summary, dict)
