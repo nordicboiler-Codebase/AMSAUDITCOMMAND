@@ -32,19 +32,15 @@ services:
       - audit_data:/app/data
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 
-  ui:
-    build: .
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
     depends_on:
       - app
-    env_file:
-      - .env
-    environment:
-      API_BASE_URL: http://app:8000
     ports:
-      - "8501:8501"
-    volumes:
-      - ./ui:/app/ui
-    command: streamlit run ui/app.py --server.address 0.0.0.0 --server.port 8501
+      - "5173:80"
+    restart: unless-stopped
 
 volumes:
   pgdata:

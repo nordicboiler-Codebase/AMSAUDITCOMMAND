@@ -1,10 +1,14 @@
 # TechSource Audit Analytics — Quickstart
 
+> **The UI is now a React SPA under `webapp/`.** The old Streamlit `ui/` was removed.
+> Backend (FastAPI) is unchanged.
+
 ## In a fresh GitHub Codespace
 
 ```bash
-make setup      # ~2 min: Postgres + deps + migrations + admin + sample data
-make run        # starts API (:8000) + Streamlit UI (:8501)
+make setup            # ~2 min: Postgres + Python deps + migrations + admin + sample data
+make webapp-install   # installs React deps (first time only)
+make run              # starts API (:8000) + React dev server (:5173)
 ```
 
 That's it. Login: `admin` / `admin123`.

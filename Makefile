@@ -1,4 +1,4 @@
-.PHONY: help setup run smoke test migrate reset stop db-logs api-logs ui-logs clean
+.PHONY: help setup run smoke test migrate reset stop db-logs api-logs ui-logs webapp-logs webapp-install webapp-build clean
 
 help:
 	@echo "TechSource Audit Analytics — dev commands"
@@ -40,7 +40,17 @@ reset:
 
 stop:
 	-pkill -f "uvicorn backend.main" || true
-	-pkill -f "streamlit run ui/app.py" || true
+	-pkill -f "vite" || true
+	-docker stop techsource-webapp-dev 2>/dev/null || true
+
+webapp-install:
+	cd webapp && npm install --no-audit --no-fund
+
+webapp-build:
+	cd webapp && npm run build
+
+webapp-logs:
+	tail -f logs/webapp.log
 
 db-logs:
 	docker compose logs -f db
@@ -49,7 +59,7 @@ api-logs:
 	tail -f logs/api.log
 
 ui-logs:
-	tail -f logs/ui.log
+	tail -f logs/webapp.log
 
 clean:
 	rm -rf logs data
