@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -10,7 +11,7 @@ from backend.core.db import get_db
 from backend.core.security import create_token, get_current_user, hash_password, verify_password
 from backend.models import AuditAction, User
 from backend.models.enums import UserRole
-from backend.services import audit_log
+from backend.services import audit_log, sso
 
 router = APIRouter()
 
@@ -57,3 +58,28 @@ def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @router.get("/me")
 def me(user: User = Depends(get_current_user)) -> dict:
     return {"id": str(user.id), "username": user.username, "email": user.email, "role": user.role.value}
+
+
+@router.get("/sso/login")
+def sso_login(db: Session = Depends(get_db)):
+    try:
+        url, _state = sso.build_authorize_url(db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/sso/callback")
+def sso_callback(request: Request, code: str | None = None, error: str | None = None,
+                 db: Session = Depends(get_db)):
+    if error or not code:
+        raise HTTPException(status_code=400, detail=f"SSO error: {error or 'no code'}")
+    try:
+        _user, jwt = sso.complete_sso(db, code=code)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    ui_base = str(request.url).split("/api/")[0]
+    return RedirectResponse(url=f"{ui_base}/?sso_token={jwt}", status_code=302)

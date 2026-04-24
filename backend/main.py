@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
         reports,
         risk,
         runs,
+        settings,
         templates,
         users,
     )
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(nlq.router, prefix="/api", tags=["nlq"])
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(library.router, prefix="/api/library", tags=["library"])
+    app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 
     return app
 
