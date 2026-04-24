@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+import enum
+
+
+class SubledgerType(str, enum.Enum):
+    GENERAL_LEDGER = "GENERAL_LEDGER"
+    ACCOUNTS_PAYABLE = "ACCOUNTS_PAYABLE"
+    ACCOUNTS_RECEIVABLE = "ACCOUNTS_RECEIVABLE"
+    PAYROLL = "PAYROLL"
+    FIXED_ASSETS = "FIXED_ASSETS"
+    INVENTORY = "INVENTORY"
+    BANK = "BANK"
+    PROCUREMENT = "PROCUREMENT"
+    TE = "TE"
+    SALES = "SALES"
+    OTHER = "OTHER"
+
+
+class UserRole(str, enum.Enum):
+    ADMIN = "ADMIN"
+    AUDITOR = "AUDITOR"
+    VIEWER = "VIEWER"
+
+
+class DetectorCategory(str, enum.Enum):
+    DATA_QUALITY = "DATA_QUALITY"
+    DUPLICATE_SEQUENCE = "DUPLICATE_SEQUENCE"
+    STATISTICAL = "STATISTICAL"
+    BENFORD_FRAUD = "BENFORD_FRAUD"
+    TEMPORAL = "TEMPORAL"
+    RELATIONAL = "RELATIONAL"
+    TEXT = "TEXT"
+    ML = "ML"
+    PREDICTIVE = "PREDICTIVE"
+
+
+class TemplateCategory(str, enum.Enum):
+    DATA_QUALITY = "DATA_QUALITY"
+    FRAUD = "FRAUD"
+    COMPLIANCE = "COMPLIANCE"
+    ANALYTICAL = "ANALYTICAL"
+
+
+class TemplateVisibility(str, enum.Enum):
+    PRIVATE = "PRIVATE"
+    PROJECT = "PROJECT"
+    SHARED = "SHARED"
+
+
+class AuditAction(str, enum.Enum):
+    LOGIN = "LOGIN"
+    LOGOUT = "LOGOUT"
+    IMPORT = "IMPORT"
+    TEST_RUN = "TEST_RUN"
+    PACK_RUN = "PACK_RUN"
+    ENSEMBLE_RUN = "ENSEMBLE_RUN"
+    EXPORT = "EXPORT"
+    NLQ = "NLQ"
+    TEMPLATE_CREATE = "TEMPLATE_CREATE"
+    TEMPLATE_UPDATE = "TEMPLATE_UPDATE"
+    TEMPLATE_FORK = "TEMPLATE_FORK"
+    TEMPLATE_PUBLISH = "TEMPLATE_PUBLISH"
+
+
+class RunStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
