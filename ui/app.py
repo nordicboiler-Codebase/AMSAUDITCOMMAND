@@ -105,13 +105,44 @@ def login_view() -> None:
             timeout=30.0,
         )
         if r.status_code == 200:
-            st.session_state["token"] = r.json()["access_token"]
-            user = _fetch_me_with_token(st.session_state["token"])
-            if user:
-                st.session_state["user"] = user
-            st.rerun()
+            data = r.json()
+            if data.get("mfa_required"):
+                st.session_state["mfa_challenge"] = data["challenge_token"]
+                st.rerun()
+            else:
+                st.session_state["token"] = data["access_token"]
+                user = _fetch_me_with_token(st.session_state["token"])
+                if user:
+                    st.session_state["user"] = user
+                st.rerun()
         else:
             st.error(f"Login failed: {r.text}")
+
+    if st.session_state.get("mfa_challenge"):
+        st.divider()
+        st.info("🔐 Multi-factor authentication required. Enter the 6-digit code from your authenticator app.")
+        with st.form("mfa_form"):
+            code = st.text_input("Authenticator code", max_chars=6)
+            c1, c2 = st.columns(2)
+            verify = c1.form_submit_button("Verify")
+            cancel = c2.form_submit_button("Cancel")
+        if verify and code:
+            r = httpx.post(f"{API_BASE}/api/auth/mfa/verify",
+                           json={"challenge_token": st.session_state["mfa_challenge"],
+                                 "token": code},
+                           timeout=15.0)
+            if r.status_code == 200:
+                st.session_state["token"] = r.json()["access_token"]
+                user = _fetch_me_with_token(st.session_state["token"])
+                if user:
+                    st.session_state["user"] = user
+                st.session_state.pop("mfa_challenge", None)
+                st.rerun()
+            else:
+                st.error(r.text)
+        if cancel:
+            st.session_state.pop("mfa_challenge", None)
+            st.rerun()
 
 
 def sidebar() -> str:
@@ -483,7 +514,7 @@ def settings_view() -> None:
         st.error("Admin role required")
         return
 
-    tab_sso, tab_email = st.tabs(["🔐 Single Sign-On", "✉️ Email"])
+    tab_sso, tab_email, tab_mfa = st.tabs(["🔐 Single Sign-On", "✉️ Email", "🔢 My MFA"])
 
     with tab_sso:
         st.subheader("Single Sign-On (OAuth2 / OIDC)")
@@ -684,6 +715,63 @@ def settings_view() -> None:
                 st.success(f"Test email sent to {test_to}")
             else:
                 st.error(r.text)
+
+    with tab_mfa:
+        st.subheader("Your multi-factor authentication")
+        me = st.session_state.get("user", {})
+        mfa_on = bool(me.get("mfa_enabled"))
+        if mfa_on:
+            st.success("MFA is **ENABLED** for your account.")
+            with st.form("mfa_disable"):
+                code = st.text_input("Enter a current TOTP code to disable", max_chars=6)
+                submit = st.form_submit_button("Disable MFA")
+            if submit and code:
+                r = api_post("/api/auth/mfa/disable", json={"token": code})
+                if r.status_code == 200:
+                    st.session_state["user"]["mfa_enabled"] = False
+                    st.success("MFA disabled.")
+                    st.rerun()
+                else:
+                    st.error(r.text)
+        else:
+            st.warning("MFA is **NOT ENABLED**. We strongly recommend enabling it for ADMIN/AUDITOR roles.")
+            st.markdown(
+                "1. Click **Start setup** — we'll generate a new secret for your account.\n"
+                "2. Scan the QR code (or paste the provisioning URI) into Microsoft Authenticator, "
+                "Google Authenticator, 1Password, or any TOTP app.\n"
+                "3. Enter the 6-digit code below to confirm."
+            )
+            if st.button("Start setup / regenerate secret"):
+                r = api_post("/api/auth/mfa/setup")
+                if r.status_code == 200:
+                    st.session_state["mfa_setup"] = r.json()
+                else:
+                    st.error(r.text)
+
+            setup = st.session_state.get("mfa_setup")
+            if setup:
+                st.code(setup["provisioning_uri"], language="text")
+                st.caption("Paste the URI above into your authenticator app, or scan the QR:")
+                qr_src = (
+                    "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data="
+                    + httpx.URL(setup["provisioning_uri"]).raw_path.decode()
+                    if False else
+                    f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={setup['provisioning_uri']}"
+                )
+                st.image(qr_src, caption="Scan with an authenticator app", width=220)
+                st.caption(f"Manual entry key: `{setup['secret']}`")
+                with st.form("mfa_enable"):
+                    code = st.text_input("6-digit code from app", max_chars=6)
+                    submit = st.form_submit_button("Confirm and enable MFA")
+                if submit and code:
+                    r = api_post("/api/auth/mfa/enable", json={"token": code})
+                    if r.status_code == 200:
+                        st.session_state["user"]["mfa_enabled"] = True
+                        st.session_state.pop("mfa_setup", None)
+                        st.success("MFA enabled. You'll be asked for a code on every sign-in.")
+                        st.rerun()
+                    else:
+                        st.error(r.text)
 
 
 def main() -> None:
