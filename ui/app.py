@@ -426,6 +426,51 @@ def packs_view() -> None:
                     show_error(r)
 
 
+def _render_param_form(schema: dict, prefix: str) -> dict[str, Any]:
+    """Auto-render a typed form from a detector schema; return {param: value} dict."""
+    values: dict[str, Any] = {}
+    for f in schema.get("fields", []):
+        name = f["name"]
+        default = f.get("default")
+        t = f.get("inferred_type", "string")
+        key = f"{prefix}_{name}"
+        if t == "bool":
+            values[name] = st.checkbox(name, value=bool(default), key=key)
+        elif t == "int":
+            values[name] = st.number_input(name, value=int(default or 0), step=1, key=key)
+        elif t == "float":
+            values[name] = st.number_input(name, value=float(default or 0.0), key=key)
+        elif t == "date":
+            s = st.text_input(name, value=str(default or ""), key=key, placeholder="YYYY-MM-DD")
+            values[name] = s or None
+        elif t == "string_list":
+            s = st.text_input(
+                name, value=",".join(map(str, default or [])), key=key,
+                placeholder="comma-separated",
+            )
+            values[name] = [x.strip() for x in s.split(",") if x.strip()]
+        elif t == "list":
+            s = st.text_area(name, value=json.dumps(default or []), key=key)
+            try:
+                values[name] = json.loads(s or "[]")
+            except Exception:
+                values[name] = []
+        elif t == "dict":
+            s = st.text_area(name, value=json.dumps(default or {}, indent=2), key=key)
+            try:
+                values[name] = json.loads(s or "{}")
+            except Exception:
+                values[name] = {}
+        elif t == "column_ref":
+            values[name] = st.text_input(
+                name, value=str(default or ""), key=key,
+                help="Column name in the dataset",
+            )
+        else:
+            values[name] = st.text_input(name, value=str(default or ""), key=key)
+    return values
+
+
 def run_view() -> None:
     st.header("Run Tests")
     tab1, tab2, tab3 = st.tabs(["Single Template", "Pack", "Custom Detector"])
@@ -435,16 +480,25 @@ def run_view() -> None:
         return
     with tab1:
         code = st.text_input("Template code", key="t_code")
-        overrides = st.text_area("Param overrides (JSON)", value="{}", key="t_over")
+        overrides: dict[str, Any] = {}
+        if code:
+            tpl_r = api_get(f"/api/templates/{code}")
+            if tpl_r.status_code == 200:
+                tpl = tpl_r.json()
+                st.caption(f"**{tpl['name']}** — detector: `{tpl['detector_name']}`")
+                sch = api_get(f"/api/templates/detectors/{tpl['detector_name']}/schema")
+                if sch.status_code == 200:
+                    schema = sch.json()
+                    # Merge template defaults into schema field defaults
+                    tpl_defaults = tpl.get("default_params") or {}
+                    for f in schema["fields"]:
+                        if f["name"] in tpl_defaults:
+                            f["default"] = tpl_defaults[f["name"]]
+                    overrides = _render_param_form(schema, prefix=f"t_{code}")
+            else:
+                st.warning(f"Template not found: {code}")
         if st.button("Run template") and code:
-            try:
-                body = {
-                    "dataset_id": dsid, "template_code": code,
-                    "param_overrides": json.loads(overrides or "{}"),
-                }
-            except Exception as e:
-                st.error(f"Invalid JSON in overrides: {e}")
-                return
+            body = {"dataset_id": dsid, "template_code": code, "param_overrides": overrides}
             r = call_with_spinner(
                 f"Running template {code}...", api_post, "/api/runs/template", json=body,
             )
@@ -470,17 +524,19 @@ def run_view() -> None:
             elif r is not None:
                 show_error(r)
     with tab3:
-        det = st.text_input("Detector name", key="d_name")
-        params = st.text_area("Params (JSON)", value="{}", key="d_params")
-        if st.button("Run detector") and det:
-            try:
-                body = {
-                    "dataset_id": dsid, "detector_name": det,
-                    "params": json.loads(params or "{}"),
-                }
-            except Exception as e:
-                st.error(f"Invalid JSON: {e}")
-                return
+        det = st.text_input("Detector name", key="d_name",
+                            help="e.g. benford, duplicates, weekend_transactions, zscore_outlier")
+        params: dict[str, Any] = {}
+        if det:
+            sch = api_get(f"/api/templates/detectors/{det}/schema")
+            if sch.status_code == 200:
+                schema = sch.json()
+                st.caption(f"**{schema['category']}** — {schema['description']}")
+                params = _render_param_form(schema, prefix=f"d_{det}")
+            else:
+                st.warning(f"Detector not found: {det}")
+        if st.button("Run detector") and det and params is not None:
+            body = {"dataset_id": dsid, "detector_name": det, "params": params}
             r = call_with_spinner(
                 f"Running detector {det}...", api_post, "/api/runs/detector", json=body,
             )

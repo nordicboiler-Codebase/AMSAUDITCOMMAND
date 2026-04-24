@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
 from backend.core.security import get_current_user
+from backend.detectors import catalog as det_catalog
 from backend.models import TestTemplate, User
 from backend.models.enums import SubledgerType, TemplateCategory, TemplateVisibility
 from backend.templates import catalog as tpl_catalog
@@ -44,6 +46,50 @@ def list_templates(
 ) -> list[dict]:
     rows = tpl_catalog.list_templates(db, subledger=subledger, category=category, search=search)
     return [_out(t) for t in rows]
+
+
+@router.get("/detectors/{name}/schema")
+def detector_schema(name: str, _u: User = Depends(get_current_user)) -> dict:
+    det_catalog.load_all()
+    try:
+        det = det_catalog.get(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    fields = []
+    for k, v in (det.default_params or {}).items():
+        fields.append({
+            "name": k,
+            "default": v,
+            "inferred_type": _infer_type(k, v),
+        })
+    return {
+        "detector_name": det.name,
+        "category": det.category.value if hasattr(det.category, "value") else str(det.category),
+        "description": det.description,
+        "default_weight": det.default_weight,
+        "fields": fields,
+    }
+
+
+def _infer_type(key: str, default: Any) -> str:
+    if isinstance(default, bool):
+        return "bool"
+    if isinstance(default, int):
+        return "int"
+    if isinstance(default, float):
+        return "float"
+    if isinstance(default, list):
+        if key.endswith("_fields") or key.endswith("_values") or key in {"required_fields",
+                                                                        "keywords", "thresholds"}:
+            return "string_list"
+        return "list"
+    if isinstance(default, dict):
+        return "dict"
+    if "date" in key:
+        return "date"
+    if "field" in key or key.endswith("_name"):
+        return "column_ref"
+    return "string"
 
 
 @router.get("/{code}")
