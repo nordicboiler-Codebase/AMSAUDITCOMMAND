@@ -23,6 +23,7 @@ from backend.core.db import Base
 from backend.models.enums import (
     AuditAction,
     DetectorCategory,
+    ProjectRole,
     RunStatus,
     SubledgerType,
     TemplateCategory,
@@ -192,6 +193,25 @@ class RiskScore(Base):
     __table_args__ = (
         CheckConstraint("score >= 0 AND score <= 100", name="ck_score_range"),
     )
+
+
+class ProjectMember(Base):
+    __tablename__ = "project_members"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_role: Mapped[ProjectRole] = mapped_column(
+        Enum(ProjectRole, name="project_role"), nullable=False
+    )
+    added_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user"),)
 
 
 class AppSetting(Base, TimestampMixin):

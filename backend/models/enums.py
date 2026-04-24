@@ -68,3 +68,10 @@ class RunStatus(str, enum.Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class ProjectRole(str, enum.Enum):
+    OWNER = "OWNER"
+    EDITOR = "EDITOR"
+    REVIEWER = "REVIEWER"
+    VIEWER = "VIEWER"
