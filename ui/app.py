@@ -187,7 +187,7 @@ def sidebar() -> str:
         st.divider()
         page = st.radio(
             "Navigate",
-            ["Dashboard", "Projects", "Datasets", "Templates", "Packs", "Run",
+            ["Dashboard", "Projects", "Engagements", "Datasets", "Templates", "Packs", "Run",
              "Risk Explorer", "Findings", "Schedules", "Test Runs", "Audit Log",
              "Template Editor", "Library", "Admin", "Settings"],
         )
@@ -665,6 +665,119 @@ def findings_view() -> None:
                 st.rerun()
 
 
+def engagements_view() -> None:
+    st.header("Engagements")
+    if not st.session_state.get("project_id"):
+        st.warning("Select an active project in the sidebar first.")
+        return
+    pid = st.session_state["project_id"]
+
+    rows = api_get("/api/engagements", params={"project_id": pid}).json()
+    if rows:
+        df = pd.DataFrame([
+            {"code": r["code"], "title": r["title"], "status": r["status"],
+             "period_start": r.get("period_start"), "period_end": r.get("period_end"),
+             "datasets": len(r["dataset_ids"]), "findings": len(r["finding_ids"])}
+            for r in rows
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No engagements yet. Create one for the current audit period below.")
+
+    with st.expander("➕ Create engagement"):
+        with st.form("new_engagement"):
+            title = st.text_input("Title", placeholder="Q2 2025 AP Audit")
+            cols = st.columns(2)
+            period_start = cols[0].date_input("Period start", value=None)
+            period_end = cols[1].date_input("Period end", value=None)
+            scope = st.text_area("Scope", placeholder="Scope: Q2 2025 AP transactions for Subsidiary DI-001 ...")
+            lead = st.text_input("Lead auditor ID (optional — defaults to you)")
+            reviewer = st.text_input("Reviewer ID (maker-checker — required to finalise)")
+            if st.form_submit_button("Create"):
+                body: dict[str, Any] = {"project_id": pid, "title": title, "scope": scope}
+                if period_start:
+                    body["period_start"] = period_start.isoformat()
+                if period_end:
+                    body["period_end"] = period_end.isoformat()
+                if lead:
+                    body["lead_auditor_id"] = lead
+                if reviewer:
+                    body["reviewer_id"] = reviewer
+                r = api_post("/api/engagements", json=body)
+                if r.status_code == 200:
+                    st.success(f"Created {r.json()['code']}")
+                    st.rerun()
+                else:
+                    show_error(r)
+
+    with st.expander("🗂️ Open engagement workspace"):
+        code = st.text_input("Engagement code (e.g. E-2026-0001)")
+        if code:
+            match = next((r for r in rows if r["code"] == code), None)
+            if not match:
+                st.warning("Not found in this project")
+                return
+            st.markdown(f"### {match['code']} — {match['title']}")
+            st.caption(f"Status: **{match['status']}** | Period: {match.get('period_start')} → {match.get('period_end')}")
+            st.markdown(f"**Scope:** {match.get('scope') or '(none)'}")
+
+            cols = st.columns(3)
+            cols[0].metric("Datasets", len(match["dataset_ids"]))
+            cols[1].metric("Pack runs", len(match["pack_run_ids"]))
+            cols[2].metric("Findings", len(match["finding_ids"]))
+
+            st.divider()
+            st.markdown("**Link artifacts to this engagement**")
+            acols = st.columns([2, 3, 1])
+            kind = acols[0].selectbox("Kind", ["dataset", "pack_run", "finding"], key=f"ak_{code}")
+            ref = acols[1].text_input("Artifact UUID", key=f"ar_{code}")
+            if acols[2].button("Link", key=f"alink_{code}") and ref:
+                r = api_post(
+                    f"/api/engagements/{match['id']}/artifact",
+                    json={"kind": kind, "ref_id": ref},
+                )
+                if r.status_code == 200:
+                    st.rerun()
+                else:
+                    show_error(r)
+
+            st.divider()
+            st.markdown("**Executive summary**")
+            summary = st.text_area(
+                "Summary (included in finalised report)",
+                value=match.get("executive_summary") or "",
+                height=120, key=f"sum_{code}",
+            )
+            if st.button("Save summary", key=f"savsum_{code}"):
+                r = httpx.patch(
+                    f"{API_BASE}/api/engagements/{match['id']}",
+                    headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                    json={"executive_summary": summary}, timeout=15.0,
+                )
+                if r.status_code == 200:
+                    st.success("Saved")
+                else:
+                    show_error(r)
+
+            st.divider()
+            tcols = st.columns(4)
+            next_status = tcols[0].selectbox(
+                "Transition to",
+                ["IN_PROGRESS", "REVIEW", "FINALISED", "PLANNING", "ARCHIVED"],
+                key=f"tr_{code}",
+            )
+            if tcols[1].button("Apply", key=f"trb_{code}"):
+                r = api_post(
+                    f"/api/engagements/{match['id']}/transition",
+                    json={"status": next_status},
+                )
+                if r.status_code == 200:
+                    st.success(f"Transitioned to {next_status}")
+                    st.rerun()
+                else:
+                    show_error(r)
+
+
 def schedules_view() -> None:
     st.header("Scheduled Runs & Alerts")
     if not st.session_state.get("project_id"):
@@ -1113,6 +1226,7 @@ def main() -> None:
     views = {
         "Dashboard": dashboard_view,
         "Projects": projects_view,
+        "Engagements": engagements_view,
         "Datasets": datasets_view,
         "Templates": templates_view,
         "Packs": packs_view,
