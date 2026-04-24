@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
 from backend.core.security import get_current_user
-from backend.models import RiskScore, User
+from backend.models import Dataset, RiskScore, User
+from backend.services import acl
 
 router = APIRouter()
 
@@ -20,8 +21,12 @@ def list_scores(
     limit: int = 100,
     sort: str = "desc",
     db: Session = Depends(get_db),
-    _u: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> list[dict]:
+    ds = db.get(Dataset, dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.VIEW)
     q = select(RiskScore).where(
         RiskScore.dataset_id == dataset_id, RiskScore.score >= min_score
     )
@@ -42,8 +47,12 @@ def score_detail(
     dataset_id: uuid.UUID,
     record_key: str,
     db: Session = Depends(get_db),
-    _u: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict:
+    ds = db.get(Dataset, dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.VIEW)
     q = select(RiskScore).where(
         RiskScore.dataset_id == dataset_id, RiskScore.record_key == record_key
     ).order_by(RiskScore.computed_at.desc()).limit(1)

@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
 from backend.core.security import get_current_user
-from backend.models import Pack, User
+from backend.models import Dataset, Pack, User
 from backend.models.enums import SubledgerType
-from backend.services import packs as pack_svc
+from backend.services import acl, packs as pack_svc
 
 router = APIRouter()
 
@@ -39,6 +39,10 @@ def get_pack(code: str, db: Session = Depends(get_db),
 @router.post("/run")
 def run_pack(body: PackRunIn, db: Session = Depends(get_db),
              user: User = Depends(get_current_user)) -> dict:
+    ds = db.get(Dataset, body.dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.EDIT)
     try:
         run = pack_svc.run_pack(db, dataset_id=body.dataset_id, pack_code=body.pack_code,
                                 template_overrides=body.template_overrides, user_id=user.id)
