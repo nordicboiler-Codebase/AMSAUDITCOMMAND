@@ -968,6 +968,25 @@ def engagements_view() -> None:
                     show_error(r)
 
             st.divider()
+            st.divider()
+            if st.button("📦 Download workpaper bundle (.zip)", key=f"wp_{code}"):
+                r = httpx.get(
+                    f"{API_BASE}/api/engagements/{match['id']}/workpaper.zip",
+                    headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                    timeout=60.0,
+                )
+                if r.status_code == 200:
+                    st.download_button(
+                        "Click to save",
+                        data=r.content,
+                        file_name=f"{match['code']}_workpaper_bundle.zip",
+                        mime="application/zip",
+                        key=f"dl_{code}",
+                    )
+                else:
+                    show_error(r)
+
+            st.divider()
             tcols = st.columns(4)
             next_status = tcols[0].selectbox(
                 "Transition to",
