@@ -187,9 +187,9 @@ def sidebar() -> str:
         st.divider()
         page = st.radio(
             "Navigate",
-            ["Dashboard", "Projects", "Engagements", "Datasets", "Templates", "Packs", "Run",
-             "Risk Explorer", "Findings", "Schedules", "Test Runs", "Audit Log",
-             "Template Editor", "Library", "Admin", "Settings"],
+            ["Dashboard", "Projects", "Engagements", "Datasets", "Connectors", "Templates",
+             "Packs", "Run", "Risk Explorer", "Findings", "Schedules", "Test Runs",
+             "Audit Log", "Template Editor", "Library", "Admin", "Settings"],
         )
         st.divider()
         if st.button("Sign out"):
@@ -772,6 +772,61 @@ def findings_view() -> None:
                 st.rerun()
 
 
+def connectors_view() -> None:
+    st.header("ERP Connectors")
+    if not st.session_state.get("project_id"):
+        st.warning("Select an active project in the sidebar first.")
+        return
+    pid = st.session_state["project_id"]
+
+    connectors = api_get("/api/connectors").json()
+    chosen = st.selectbox("Connector", [c["name"] for c in connectors])
+    schema = next((c for c in connectors if c["name"] == chosen), None)
+    if not schema:
+        return
+    st.caption(schema["description"])
+
+    with st.form("conn_pull"):
+        dataset_name = st.text_input("Dataset name (new)", placeholder="AP March 2025 (SAP)")
+        subledger = st.selectbox("Subledger", [
+            "ACCOUNTS_PAYABLE", "ACCOUNTS_RECEIVABLE", "GENERAL_LEDGER", "PAYROLL",
+            "FIXED_ASSETS", "INVENTORY", "BANK", "PROCUREMENT", "TE", "SALES", "OTHER",
+        ])
+        st.markdown("**Connector config**")
+        cfg: dict[str, Any] = {}
+        for key, meta in schema["config_schema"].items():
+            label = key + (" *" if meta.get("required") else "")
+            default = meta.get("default")
+            is_secret = meta.get("secret")
+            if meta.get("type") == "int":
+                cfg[key] = int(st.number_input(label, value=int(default or 0), key=f"c_{key}"))
+            elif is_secret:
+                cfg[key] = st.text_input(label, value="", type="password",
+                                         key=f"c_{key}", help=meta.get("description", ""))
+            else:
+                cfg[key] = st.text_input(label, value=str(default or ""),
+                                         key=f"c_{key}", help=meta.get("description", ""))
+        submit = st.form_submit_button("Pull from source and import")
+    if submit:
+        body = {
+            "connector": chosen, "project_id": pid, "dataset_name": dataset_name,
+            "subledger_type": subledger, "config": cfg,
+        }
+        r = call_with_spinner(
+            f"Pulling from {chosen} and importing...",
+            api_post, "/api/connectors/pull-and-import", json=body,
+        )
+        if r and r.status_code == 200:
+            data = r.json()
+            st.success(
+                f"Imported {data['record_count']} rows from {chosen} "
+                f"(dataset {data['dataset_id']})"
+            )
+            st.json(data)
+        elif r is not None:
+            show_error(r)
+
+
 def engagements_view() -> None:
     st.header("Engagements")
     if not st.session_state.get("project_id"):
@@ -1335,6 +1390,7 @@ def main() -> None:
         "Projects": projects_view,
         "Engagements": engagements_view,
         "Datasets": datasets_view,
+        "Connectors": connectors_view,
         "Templates": templates_view,
         "Packs": packs_view,
         "Run": run_view,

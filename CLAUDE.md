@@ -100,8 +100,28 @@ enterprise controls are now in place:
 9. **Encrypted uploads at rest** — raw source files are stored Fernet-encrypted in
    `data/uploads/`; plaintext only exists as a short-lived temp file during import.
 
-Next phase slices (not yet done): ERP connectors (SAP/Oracle), Arabic i18n, continuous
-monitoring / scheduled runs, Power BI export, engagement workspace.
+**Phase B — ACL-parity complete.** Additional deliverables:
+
+10. **Scheduled runs + alerts** — cron-based schedule engine (APScheduler + croniter).
+    Per-schedule target (PACK or TEMPLATE), optional auto-ensemble, email alerts when
+    max risk score crosses a configurable threshold.
+11. **Engagement workspace** — `engagements` table. Scope, period, lead auditor, reviewer.
+    Status workflow PLANNING → IN_PROGRESS → REVIEW → FINALISED → ARCHIVED. Maker-checker
+    on finalise. Links datasets + pack runs + findings. Executive summary.
+12. **KPI dashboard** — real metrics at `/api/metrics/dashboard`: projects, open findings,
+    severity breakdown, status breakdown, 12-week finding trend, top risky records.
+13. **Auto-rendered param forms** — `/api/templates/detectors/{name}/schema` returns
+    typed fields. UI Run page renders proper inputs (text, number, date, list, checkbox)
+    instead of a JSON textbox.
+14. **ERP connectors** — pluggable framework with SFTP, SAP S/4HANA OData v4, Oracle Fusion
+    REST. `POST /api/connectors/pull-and-import` pulls from source, stages, hashes, imports
+    as a Dataset in one call.
+15. **BI export feeds** — `/api/bi/findings.csv`, `/api/bi/risk_scores.csv`,
+    `/api/bi/test_runs.csv` consumable by Power BI Web connector, Tableau WDC, Excel.
+    Manifest at `/api/bi/manifest.json`.
+
+Next phase slices (not yet done): Arabic i18n, ISO 27001 SOC2-style hardening,
+MindBridge-style continuous risk scoring, workpaper linkage, mobile companion.
 
 ## Commands
 
