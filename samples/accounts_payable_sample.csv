@@ -1,0 +1,6 @@
+record_id,vendor_id,vendor_name,vendor_iban,vendor_address,vendor_phone,invoice_no,amount,payment_date,payment_datetime,description,gl_account,employee_id,employee_iban,employee_address,employee_phone,po_number
+R0001,V01,Acme Supplies LLC,AE070331234567890123001,"PO Box 123, Dubai",+971501234567,INV-1001,1250.00,2025-03-03,2025-03-03T10:15:00,office supplies,GL-0001,,,,,
+R0002,V02,Gulf Trading Co,AE070331234567890123002,"Sheikh Zayed Rd, Dubai",+971504567890,INV-1002,9500.00,2025-03-08,2025-03-08T14:22:00,consulting fees Q1,GL-0002,,,,,PO-5001
+R0003,V03,Tech Innovations FZ,AE070331234567890123003,"PO Box 456, Abu Dhabi",+971503334455,INV-1003,50000.00,2025-03-15,2025-03-15T09:00:00,software licence renewal,GL-0003,,,,,PO-5002
+R0004,V01,Acme Supplies LLC,AE070331234567890123001,"PO Box 123, Dubai",+971501234567,INV-1001,1250.00,2025-03-22,2025-03-22T11:30:00,office supplies,GL-0001,,,,,
+R0005,V04,Quick Logistics,AE070331234567890123004,"Al Quoz, Dubai",+971505556677,INV-1004,847.50,2025-03-29,2025-03-29T23:45:00,test reversal adjustment,GL-0004,,,,,
