@@ -8,7 +8,8 @@ import polars as pl
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.models import Dataset, PackRun, Project, TestRun
+from backend.models import Dataset, PackRun, Project, RiskScore, TestRun
+from backend.services import charts
 
 
 def _html_safe(s: str | None) -> str:
@@ -49,6 +50,9 @@ def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
         for k, v in (run.params or {}).items()
     ) + "</table>"
 
+    chart_uri = charts.render_chart_for_summary(run.detector_name, run.summary or {})
+    chart_html = f'<img src="{chart_uri}" style="max-width:100%;"/>' if chart_uri else ""
+
     html = f"""
     <html><head><style>
       body {{ font-family: DejaVu Sans, sans-serif; font-size: 10pt; color: #222; }}
@@ -73,6 +77,8 @@ def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
       <p>The test produced <span class="metric">{run.findings_count}</span> findings.</p>
       <h2>Parameters</h2>
       {params_html}
+      <h2>Visualisation</h2>
+      {chart_html or "<p>No chart available for this detector.</p>"}
       <h2>Summary</h2>
       <pre>{_html_safe(json.dumps(run.summary or {}, indent=2)[:3000])}</pre>
       <h2>Findings (top 100)</h2>
@@ -102,10 +108,31 @@ def generate_pack_report(db: Session, pack_run_id: uuid.UUID) -> bytes:
         f"<td>{r.status.value if r.status else ''}</td></tr>"
         for r in runs
     )
+
+    # Findings-count Pareto by template
+    pareto_rows = [{"template": r.template_code or r.detector_name, "findings": r.findings_count}
+                   for r in runs if r.findings_count]
+    pareto_uri = charts.pareto_chart(pareto_rows, "template", "findings",
+                                     title="Top Templates by Findings Count")
+    pareto_html = f'<img src="{pareto_uri}" style="max-width:100%;"/>' if pareto_uri else ""
+
+    # Risk score distribution for ensemble-scored records on this dataset
+    score_html = ""
+    if pr.ensemble_run_id:
+        score_vals = [
+            s for (s,) in db.execute(
+                select(RiskScore.score).where(RiskScore.ensemble_run_id == pr.ensemble_run_id)
+            ).all()
+        ]
+        score_uri = charts.score_histogram_chart([float(s) for s in score_vals])
+        if score_uri:
+            score_html = f'<img src="{score_uri}" style="max-width:100%;"/>'
+
     html = f"""
     <html><head><style>
       body {{ font-family: DejaVu Sans, sans-serif; font-size: 10pt; }}
       h1 {{ color: #0b2a4a; }}
+      h2 {{ color: #0b2a4a; border-bottom: 1px solid #ccc; padding-bottom: 2px; }}
       table {{ border-collapse: collapse; width: 100%; }}
       th, td {{ border: 1px solid #ccc; padding: 4px 6px; }}
       th {{ background: #0b2a4a; color: white; }}
@@ -113,6 +140,10 @@ def generate_pack_report(db: Session, pack_run_id: uuid.UUID) -> bytes:
       <h1>Pack Run Report — {_html_safe(pr.pack_code)}</h1>
       <p>Dataset: {_html_safe(dataset.name if dataset else "")}</p>
       <p>Templates run: {len(runs)} | Total findings: {sum(r.findings_count for r in runs)}</p>
+      <h2>Findings by Template</h2>
+      {pareto_html or "<p>No findings to chart.</p>"}
+      {"<h2>Risk Score Distribution</h2>" + score_html if score_html else ""}
+      <h2>Detail by Template</h2>
       <table><thead><tr><th>Template</th><th>Detector</th><th>Findings</th><th>Status</th></tr></thead>
       <tbody>{rows}</tbody></table>
     </body></html>
