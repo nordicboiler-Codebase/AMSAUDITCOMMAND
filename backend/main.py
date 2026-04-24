@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
     from backend.api import (
         auth,
         audit_log,
+        connectors,
         datasets,
         engagements,
         ensemble,
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(schedules.router, prefix="/api/schedules", tags=["schedules"])
     app.include_router(engagements.router, prefix="/api/engagements", tags=["engagements"])
     app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
+    app.include_router(connectors.router, prefix="/api/connectors", tags=["connectors"])
 
     return app
 
