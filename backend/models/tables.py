@@ -343,6 +343,25 @@ class Engagement(Base, TimestampMixin):
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
 
+class Monitor(Base, TimestampMixin):
+    __tablename__ = "monitors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    subledger_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    pack_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    auto_ensemble: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_create_finding_min_score: Mapped[float] = mapped_column(Float, default=90.0)
+    alert_recipients: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_dataset_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+
+
 class AppSetting(Base, TimestampMixin):
     __tablename__ = "app_settings"
 

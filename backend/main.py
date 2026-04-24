@@ -45,6 +45,7 @@ def create_app() -> FastAPI:
         ensemble,
         findings,
         metrics,
+        monitors,
         library,
         nlq,
         packs,
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
     app.include_router(connectors.router, prefix="/api/connectors", tags=["connectors"])
     app.include_router(bi_export.router, prefix="/api/bi", tags=["bi_export"])
+    app.include_router(monitors.router, prefix="/api/monitors", tags=["monitors"])
 
     return app
 

@@ -68,6 +68,7 @@ class AuditAction(str, enum.Enum):
     SCHEDULE_RUN = "SCHEDULE_RUN"
     ALERT_SENT = "ALERT_SENT"
     ENGAGEMENT_FINALISE = "ENGAGEMENT_FINALISE"
+    MONITOR_TRIGGERED = "MONITOR_TRIGGERED"
 
 
 class RunStatus(str, enum.Enum):

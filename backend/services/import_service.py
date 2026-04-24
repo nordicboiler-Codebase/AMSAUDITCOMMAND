@@ -143,6 +143,15 @@ def import_dataset(
     )
     db.commit()
 
+    try:
+        from backend.services import monitors
+
+        monitors.trigger_on_import(db, dataset=dataset, user_id=user_id)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Monitor trigger failed; import already committed")
+
     return ImportResult(
         dataset_id=dataset.id,
         record_count=record_count,
