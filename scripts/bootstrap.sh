@@ -5,6 +5,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo "    wrote .env from .env.example"
+fi
+
 echo "==> [1/6] Starting Postgres via docker compose"
 docker compose up -d db
 
