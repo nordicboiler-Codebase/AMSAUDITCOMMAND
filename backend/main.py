@@ -34,6 +34,7 @@ def create_app() -> FastAPI:
         audit_log,
         datasets,
         ensemble,
+        findings,
         library,
         nlq,
         packs,
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(library.router, prefix="/api/library", tags=["library"])
     app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+    app.include_router(findings.router, prefix="/api/findings", tags=["findings"])
 
     return app
 
