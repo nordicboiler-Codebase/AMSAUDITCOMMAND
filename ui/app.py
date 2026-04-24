@@ -610,7 +610,9 @@ def settings_view() -> None:
         st.error("Admin role required")
         return
 
-    tab_sso, tab_email, tab_mfa = st.tabs(["🔐 Single Sign-On", "✉️ Email", "🔢 My MFA"])
+    tab_sso, tab_email, tab_mfa, tab_ret = st.tabs(
+        ["🔐 Single Sign-On", "✉️ Email", "🔢 My MFA", "🗄️ Data Retention"]
+    )
 
     with tab_sso:
         st.subheader("Single Sign-On (OAuth2 / OIDC)")
@@ -868,6 +870,67 @@ def settings_view() -> None:
                         st.rerun()
                     else:
                         st.error(r.text)
+
+    with tab_ret:
+        st.subheader("Data retention policy")
+        st.caption(
+            "Enforce automatic purge of old datasets per subledger. "
+            "Aligns with UAE PDPL Article 16 (data minimisation) and DI-IT-POL retention schedules."
+        )
+        pol = api_get("/api/settings/retention").json()
+        with st.form("retention"):
+            enabled = st.checkbox("Enable retention enforcement", value=pol.get("enabled", False))
+            default_days = st.number_input(
+                "Default retention (days)", min_value=30, max_value=3650,
+                value=int(pol.get("default_days", 2555)), step=30,
+            )
+            st.markdown("**Per-subledger overrides (days)** — leave blank to use default")
+            per_sub = pol.get("per_subledger_days") or {}
+            subs = ["GENERAL_LEDGER", "ACCOUNTS_PAYABLE", "ACCOUNTS_RECEIVABLE", "PAYROLL",
+                    "FIXED_ASSETS", "INVENTORY", "BANK", "PROCUREMENT", "TE", "SALES"]
+            overrides: dict[str, int] = {}
+            sub_cols = st.columns(2)
+            for i, s in enumerate(subs):
+                with sub_cols[i % 2]:
+                    v = st.number_input(
+                        s, min_value=0, max_value=3650,
+                        value=int(per_sub.get(s, 0)), step=30, key=f"ret_{s}",
+                    )
+                    if v > 0:
+                        overrides[s] = v
+            preserve = st.checkbox(
+                "Preserve datasets referenced by open findings",
+                value=bool(pol.get("preserve_findings_referenced", True)),
+                help="Datasets linked to findings in any status are excluded from purge",
+            )
+            if st.form_submit_button("Save policy"):
+                r = api_post("/api/settings/retention", json={})
+                # use PUT instead
+                r = httpx.put(
+                    f"{API_BASE}/api/settings/retention",
+                    headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                    json={
+                        "enabled": enabled,
+                        "default_days": int(default_days),
+                        "per_subledger_days": overrides,
+                        "preserve_findings_referenced": preserve,
+                    },
+                    timeout=15.0,
+                )
+                if r.status_code == 200:
+                    st.success("Policy saved")
+                else:
+                    st.error(r.text)
+
+        st.divider()
+        cols = st.columns(2)
+        if cols[0].button("🔍 Scan (dry-run)"):
+            scan = api_post("/api/settings/retention/scan").json()
+            st.json(scan)
+        if cols[1].button("⚠️ Purge now (irreversible)"):
+            purged = api_post("/api/settings/retention/purge").json()
+            st.warning(f"Purge complete: {purged.get('purged_datasets', 0)} datasets removed")
+            st.json(purged)
 
 
 def main() -> None:
