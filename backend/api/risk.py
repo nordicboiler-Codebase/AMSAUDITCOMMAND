@@ -18,8 +18,10 @@ router = APIRouter()
 def list_scores(
     dataset_id: uuid.UUID,
     min_score: float = 0.0,
+    offset: int = 0,
     limit: int = 100,
     sort: str = "desc",
+    ensemble_run_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[dict]:
@@ -30,7 +32,12 @@ def list_scores(
     q = select(RiskScore).where(
         RiskScore.dataset_id == dataset_id, RiskScore.score >= min_score
     )
-    q = q.order_by(RiskScore.score.desc() if sort == "desc" else RiskScore.score.asc()).limit(limit)
+    if ensemble_run_id is not None:
+        q = q.where(RiskScore.ensemble_run_id == ensemble_run_id)
+    limit = min(limit, 500)
+    q = q.order_by(
+        RiskScore.score.desc() if sort == "desc" else RiskScore.score.asc()
+    ).offset(offset).limit(limit)
     return [
         {
             "record_key": r.record_key,

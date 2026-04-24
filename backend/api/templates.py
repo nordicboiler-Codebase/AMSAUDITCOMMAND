@@ -123,6 +123,30 @@ def clone_template(code: str, body: CloneIn, db: Session = Depends(get_db),
     return _out(tpl)
 
 
+class TemplateUpdateIn(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    default_params: dict | None = None
+    default_weight: float | None = None
+    tags: list[str] | None = None
+
+
+@router.put("/{code}")
+def update_template(code: str, body: TemplateUpdateIn, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)) -> dict:
+    try:
+        tpl = tpl_catalog.update_template(
+            db, code,
+            name=body.name, description=body.description,
+            default_params=body.default_params, default_weight=body.default_weight,
+            tags=body.tags, user_id=user.id,
+        )
+    except tpl_catalog.TemplateError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    db.commit()
+    return _out(tpl)
+
+
 def _out(t: TestTemplate) -> dict:
     return {
         "id": str(t.id),

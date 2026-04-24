@@ -74,6 +74,21 @@ def get_project(project_id: uuid.UUID, db: Session = Depends(get_db),
     return _project_out(p)
 
 
+@router.delete("/{project_id}")
+def delete_project(project_id: uuid.UUID, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)) -> dict:
+    """Delete a project. ADMIN only. Cascades to datasets, runs, findings, monitors, schedules."""
+    acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.ADMIN)
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="ADMIN role required for project deletion")
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(p)
+    db.commit()
+    return {"deleted": True}
+
+
 @router.put("/{project_id}/branding")
 def update_branding(project_id: uuid.UUID, body: BrandingIn,
                     db: Session = Depends(get_db),

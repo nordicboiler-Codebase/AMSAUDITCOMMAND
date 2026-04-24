@@ -94,6 +94,23 @@ def get_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db),
     return _ds_out(ds)
 
 
+@router.delete("/{dataset_id}")
+def delete_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)) -> dict:
+    ds = db.get(Dataset, dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.ADMIN)
+    audit_log.log_action(
+        db, user_id=user.id, action=AuditAction.EXPORT, entity_type="dataset",
+        entity_id=str(ds.id), project_id=ds.project_id,
+        details={"action": "delete", "name": ds.name, "source_hash": ds.source_hash_sha256},
+    )
+    db.delete(ds)
+    db.commit()
+    return {"deleted": True}
+
+
 @router.get("/{dataset_id}/source")
 def download_source(
     dataset_id: uuid.UUID, db: Session = Depends(get_db),

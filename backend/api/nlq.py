@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
+from backend.core.rate_limit import nlq_rate_limit
 from backend.core.security import get_current_user
 from backend.models import User
 from backend.services import nlq
@@ -20,18 +21,21 @@ class NLQIn(BaseModel):
 
 @router.post("/datasets/{dataset_id}/nlq")
 def nl_query(dataset_id: uuid.UUID, body: NLQIn, db: Session = Depends(get_db),
-             user: User = Depends(get_current_user)) -> dict:
+             user: User = Depends(get_current_user),
+             _rl: None = Depends(nlq_rate_limit)) -> dict:
     return nlq.nl_to_template(db, dataset_id=dataset_id, question=body.question, user_id=user.id)
 
 
 @router.post("/datasets/{dataset_id}/suggest-templates")
 def suggest(dataset_id: uuid.UUID, db: Session = Depends(get_db),
-            user: User = Depends(get_current_user)) -> list[dict]:
+            user: User = Depends(get_current_user),
+            _rl: None = Depends(nlq_rate_limit)) -> list[dict]:
     return nlq.suggest_templates(db, dataset_id=dataset_id, user_id=user.id)
 
 
 @router.post("/test-runs/{run_id}/narrative")
 def narrative(run_id: uuid.UUID, db: Session = Depends(get_db),
-              user: User = Depends(get_current_user)) -> dict:
+              user: User = Depends(get_current_user),
+              _rl: None = Depends(nlq_rate_limit)) -> dict:
     text = nlq.generate_narrative(db, test_run_id=run_id, user_id=user.id)
     return {"narrative": text}

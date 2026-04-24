@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from backend.models import AuditAction, Dataset, EnsembleRun, PackRun, RiskScore, TestRun, User
+from backend.models import (
+    AuditAction, Dataset, EnsembleRun, Finding, FindingStatus, PackRun, RiskScore, TestRun, User,
+)
 from backend.services import audit_log, settings_store
 
 CATEGORY = "retention"
@@ -87,13 +89,19 @@ def purge(
 
     for ds in stale:
         if preserve_fk:
-            from backend.models import Finding
-            has_finding = db.execute(
-                select(Finding.id).where(Finding.dataset_id == ds.id).limit(1)
+            # Only preserve when an *open* finding references this dataset.
+            # Closed findings (REMEDIATED, ACCEPTED_RISK, FALSE_POSITIVE) shouldn't block purge.
+            OPEN_STATES = (FindingStatus.DRAFT, FindingStatus.UNDER_REVIEW, FindingStatus.CONFIRMED)
+            has_open = db.execute(
+                select(Finding.id).where(
+                    Finding.dataset_id == ds.id, Finding.status.in_(OPEN_STATES)
+                ).limit(1)
             ).scalar_one_or_none()
-            if has_finding:
+            if has_open:
                 summary["preserved_datasets"] += 1
-                summary["details"].append({"dataset_id": str(ds.id), "action": "preserved_finding_link"})
+                summary["details"].append(
+                    {"dataset_id": str(ds.id), "action": "preserved_open_finding"}
+                )
                 continue
 
         if dry_run:
