@@ -1,0 +1,9 @@
+record_id,claim_id,employee_id,employee_name,category,amount,category_limit,expense_date,description,receipt_path,mileage_km
+R0001,EXP-001,E01,Sarah Khan,meals,120.50,200.00,2025-03-04,lunch with client,rcp_001.pdf,0
+R0002,EXP-002,E02,Ahmed Rashid,travel,3500.00,5000.00,2025-03-08,flight Dubai to London,rcp_002.pdf,0
+R0003,EXP-003,E03,Priya Sharma,meals,500.00,200.00,2025-03-12,client dinner exceeded limit,rcp_003.pdf,0
+R0004,EXP-004,E01,Sarah Khan,meals,120.50,200.00,2025-03-04,lunch with client,rcp_001.pdf,0
+R0005,EXP-005,E04,John Chen,transport,1000.00,500.00,2025-03-15,round dollar taxi claim,,0
+R0006,EXP-006,E05,Maria Souza,mileage,450.00,600.00,2025-03-16,site visit,rcp_006.pdf,1200
+R0007,EXP-007,E06,James Wilson,meals,85.00,200.00,2025-03-22,weekend team dinner,rcp_007.pdf,0
+R0008,EXP-008,E02,Ahmed Rashid,office,2000.00,1500.00,2025-03-25,supplies exceeded limit,,0
