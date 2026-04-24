@@ -188,8 +188,8 @@ def sidebar() -> str:
         page = st.radio(
             "Navigate",
             ["Dashboard", "Projects", "Datasets", "Templates", "Packs", "Run",
-             "Risk Explorer", "Findings", "Test Runs", "Audit Log", "Template Editor",
-             "Library", "Admin", "Settings"],
+             "Risk Explorer", "Findings", "Schedules", "Test Runs", "Audit Log",
+             "Template Editor", "Library", "Admin", "Settings"],
         )
         st.divider()
         if st.button("Sign out"):
@@ -665,6 +665,108 @@ def findings_view() -> None:
                 st.rerun()
 
 
+def schedules_view() -> None:
+    st.header("Scheduled Runs & Alerts")
+    if not st.session_state.get("project_id"):
+        st.warning("Select an active project in the sidebar first.")
+        return
+    pid = st.session_state["project_id"]
+
+    rows = api_get("/api/schedules", params={"project_id": pid}).json()
+    if rows:
+        df = pd.DataFrame([
+            {"id": r["id"], "name": r["name"], "kind": r["kind"],
+             "target": r.get("pack_code") or r.get("template_code"),
+             "cron": r["cron_expr"], "status": r["status"],
+             "next_run": r.get("next_run_at"), "alert": r["alert_enabled"]}
+            for r in rows
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No schedules configured yet.")
+
+    with st.expander("➕ Create schedule"):
+        with st.form("new_schedule"):
+            name = st.text_input("Name", placeholder="Monthly AP Review")
+            kind = st.selectbox("Kind", ["PACK", "TEMPLATE"])
+            pack_code = st.text_input("Pack code (for PACK kind)", "AP_STANDARD")
+            template_code = st.text_input("Template code (for TEMPLATE kind)", "")
+            cron_expr = st.text_input("Cron expression", "0 2 1 * *",
+                                      help="Minute Hour Day Month DayOfWeek — e.g. '0 2 1 * *' = 02:00 on the 1st")
+            dataset_id = st.text_input("Dataset ID", value=st.session_state.get("dataset_id", ""))
+            autoens = st.checkbox("Run ensemble after pack", value=True)
+            alert_enabled = st.checkbox("Send email alert", value=False)
+            alert_threshold = st.slider("Alert when max risk >=", 0, 100, 80)
+            recipients = st.text_input("Alert recipients (comma-separated)")
+            description = st.text_area("Description")
+            if st.form_submit_button("Create + preview cron"):
+                body = {
+                    "name": name, "project_id": pid, "dataset_id": dataset_id, "kind": kind,
+                    "pack_code": pack_code if kind == "PACK" else None,
+                    "template_code": template_code if kind == "TEMPLATE" else None,
+                    "cron_expr": cron_expr, "autoensemble": autoens,
+                    "alert_enabled": alert_enabled, "alert_min_score": float(alert_threshold),
+                    "alert_recipients": [x.strip() for x in recipients.split(",") if x.strip()],
+                    "description": description,
+                }
+                preview = api_post("/api/schedules/preview-cron", json={"cron_expr": cron_expr})
+                if preview.status_code == 200:
+                    st.info("Next 5 fire times:\n" + "\n".join(preview.json()["next_runs"]))
+                r = api_post("/api/schedules", json=body)
+                if r.status_code == 200:
+                    st.success(f"Created schedule {r.json()['id']}")
+                    st.rerun()
+                else:
+                    show_error(r)
+
+    with st.expander("🎯 Run / manage schedule"):
+        sid = st.text_input("Schedule ID")
+        if sid:
+            detail = api_get(f"/api/schedules/{sid}").json()
+            st.json(detail)
+            cols = st.columns(3)
+            if cols[0].button("Run now"):
+                r = call_with_spinner(
+                    "Running schedule now...", api_post, f"/api/schedules/{sid}/run-now",
+                )
+                if r and r.status_code == 200:
+                    st.json(r.json())
+                elif r is not None:
+                    show_error(r)
+            if cols[1].button("Pause/Resume"):
+                new_status = "PAUSED" if detail["status"] == "ACTIVE" else "ACTIVE"
+                r = httpx.patch(
+                    f"{API_BASE}/api/schedules/{sid}",
+                    headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                    json={"status": new_status}, timeout=15.0,
+                )
+                if r.status_code == 200:
+                    st.rerun()
+                else:
+                    show_error(r)
+            if cols[2].button("🗑️ Delete", type="secondary"):
+                r = httpx.delete(
+                    f"{API_BASE}/api/schedules/{sid}",
+                    headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                    timeout=15.0,
+                )
+                if r.status_code == 200:
+                    st.success("Deleted")
+                    st.rerun()
+                else:
+                    show_error(r)
+            st.subheader("Run history")
+            runs = api_get(f"/api/schedules/{sid}/runs").json()
+            if runs:
+                st.dataframe(pd.DataFrame([
+                    {"started": r["started_at"], "finished": r["finished_at"],
+                     "status": r["status"], "alert_sent": r["alert_sent"],
+                     "findings": r.get("summary", {}).get("templates_run")
+                                 or r.get("summary", {}).get("findings")}
+                    for r in runs
+                ]), use_container_width=True, hide_index=True)
+
+
 def admin_view() -> None:
     st.header("Admin")
     if st.session_state.get("user", {}).get("role") != "ADMIN":
@@ -1017,6 +1119,7 @@ def main() -> None:
         "Run": run_view,
         "Risk Explorer": risk_view,
         "Findings": findings_view,
+        "Schedules": schedules_view,
         "Test Runs": runs_view,
         "Audit Log": audit_log_view,
         "Template Editor": template_editor_view,
