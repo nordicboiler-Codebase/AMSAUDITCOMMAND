@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -129,11 +130,44 @@ def projects_view() -> None:
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+SAMPLE_FILES = {
+    "ACCOUNTS_PAYABLE": ("samples/accounts_payable_sample.csv",
+                         "5 rows — planted duplicate payment, threshold avoidance, late-night reversal"),
+    "ACCOUNTS_RECEIVABLE": ("samples/accounts_receivable_sample.csv",
+                            "7 rows — credit-limit breach, aged invoice, large write-off"),
+    "GENERAL_LEDGER": ("samples/general_ledger_sample.csv",
+                       "6 rows — backdated entry, 'test plug' keyword, unbalanced entry"),
+    "PAYROLL": ("samples/payroll_sample.csv",
+                "6 rows — shared bank account, ghost employee, 50% pay raise"),
+}
+
+
 def datasets_view() -> None:
     st.header("Datasets")
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
+
+    with st.expander("📥 Need a sample? Download a ready-made CSV", expanded=False):
+        st.caption(
+            "Each sample has planted fraud signals — import it, run the matching pack, "
+            "and findings fire immediately. Column reference for your own data: see `samples/README.md`."
+        )
+        for subledger, (path, desc) in SAMPLE_FILES.items():
+            p = Path(path)
+            if not p.exists():
+                continue
+            cols = st.columns([2, 3, 2])
+            cols[0].markdown(f"**{subledger}**")
+            cols[1].caption(desc)
+            cols[2].download_button(
+                label=f"Download {p.name}",
+                data=p.read_bytes(),
+                file_name=p.name,
+                mime="text/csv",
+                key=f"dl_{subledger}",
+            )
+
     with st.expander("Import dataset"):
         with st.form("import"):
             file = st.file_uploader("File (CSV, XLSX, Parquet)")
