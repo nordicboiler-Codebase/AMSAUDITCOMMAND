@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from i18n import SUPPORTED, apply_rtl_if_needed, t  # noqa: E402
 from theme import (  # noqa: E402
     COLORS, card_close, card_open, empty_state, group_banner, heat_tile, inject_css,
-    metric_card, section_header, severity_badge, status_badge,
+    metric_card, sb_brand, sb_nav_group_label, sb_user, section_header,
+    severity_badge, status_badge,
 )
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
@@ -113,23 +114,59 @@ def login_view() -> None:
             st.error("SSO succeeded but profile fetch failed.")
             st.query_params.clear()
 
-    # Cleaner login: centered column, brand strip at top, language in header
-    top_l, top_r = st.columns([4, 1])
-    with top_r:
-        _lang_picker("login")
-    st.markdown(
-        """
-        <div style="text-align:center; padding: 60px 20px 20px 20px;">
-          <div style="font-size: 3rem;">🛡️</div>
-          <h1 style="margin-top: 8px;">TechSource Audit Analytics</h1>
-          <p style="color:#6b7684; margin-top:-4px;">Group-wide internal audit intelligence</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    center = st.columns([1, 2, 1])[1]
-    with center:
-        pass  # form below fills centre column
+    # Split-screen hero + auth card
+    left, right = st.columns([1, 1], gap="large")
+    with left:
+        st.markdown(
+            """
+            <div class="ts-hero" style="min-height: 480px; display:flex; flex-direction:column;
+                                        justify-content:space-between;">
+              <div>
+                <div style="font-size: 2rem;">🛡️</div>
+                <h1 style="margin-top: 14px;">TechSource Audit Analytics</h1>
+                <p style="margin-top: 8px; max-width: 380px;">
+                  Group-wide internal audit intelligence. 148 named tests across
+                  11 subledger domains, tamper-evident audit log, ensemble risk scoring.
+                </p>
+              </div>
+              <div style="display:flex; gap:24px; margin-top: 40px;">
+                <div>
+                  <div style="font-size: 1.8rem; font-weight:700;">148</div>
+                  <div style="font-size: 0.72rem; opacity:0.7;
+                              text-transform:uppercase; letter-spacing: 0.08em;">
+                    Named tests
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 1.8rem; font-weight:700;">36</div>
+                  <div style="font-size: 0.72rem; opacity:0.7;
+                              text-transform:uppercase; letter-spacing: 0.08em;">
+                    Detectors
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 1.8rem; font-weight:700;">10</div>
+                  <div style="font-size: 0.72rem; opacity:0.7;
+                              text-transform:uppercase; letter-spacing: 0.08em;">
+                    Domain packs
+                  </div>
+                </div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with right:
+        top_r = st.columns([3, 1])[1]
+        with top_r:
+            _lang_picker("login")
+        st.markdown('<div class="ts-auth-box">', unsafe_allow_html=True)
+        st.markdown(
+            f'<h2 style="margin-top:0;">Sign in</h2>'
+            f'<p class="muted" style="margin-top:-6px;">Use your corporate credentials.</p>',
+            unsafe_allow_html=True,
+        )
 
     try:
         sso_status = httpx.get(f"{API_BASE}/api/settings/sso/status", timeout=5.0).json()
@@ -172,7 +209,9 @@ def login_view() -> None:
                     st.session_state["user"] = user
                 st.rerun()
         else:
-            st.error(f"Login failed: {r.text}")
+            show_error(r)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # close ts-auth-box
 
     if st.session_state.get("mfa_challenge"):
         st.divider()
@@ -263,39 +302,13 @@ def sidebar() -> str:
     apply_rtl_if_needed()
     _session_warning()
     with st.sidebar:
-        # Brand strip
-        st.markdown(
-            """
-            <div style="padding: 8px 0 14px 0; text-align: center;">
-              <div style="font-size: 1.6rem;">🛡️</div>
-              <div style="color: white; font-weight: 600; font-size: 0.95rem; margin-top: 2px;">
-                TechSource Audit
-              </div>
-              <div style="color: #9aa5b1; font-size: 0.68rem; letter-spacing: 0.08em;
-                          text-transform: uppercase; margin-top: 2px;">
-                Group audit intelligence
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        sb_brand()
         _lang_picker("sidebar")
-
-        user_name = st.session_state['user']['username']
-        role = st.session_state['user']['role']
-        st.markdown(
-            f"""
-            <div style="background: rgba(255,255,255,0.06); border-radius: 8px;
-                        padding: 8px 12px; margin: 6px 0;">
-              <div style="color: white; font-weight: 600; font-size: 0.9rem;">{user_name}</div>
-              <div style="color: #9aa5b1; font-size: 0.72rem;">{role}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        sb_user(st.session_state["user"]["username"], st.session_state["user"]["role"])
         projects = api_get("/api/projects").json() if st.session_state.get("token") else []
         project_names = {p["name"]: p["id"] for p in projects}
-        sel_project = st.selectbox(t("common.active_project"), ["(none)"] + list(project_names.keys()))
+        sel_project = st.selectbox(t("common.active_project"),
+                                   ["(none)"] + list(project_names.keys()))
         st.session_state["project_id"] = project_names.get(sel_project)
         datasets = []
         if st.session_state.get("project_id"):
@@ -304,26 +317,25 @@ def sidebar() -> str:
                 pass
         sel_dataset = st.text_input(t("common.active_dataset"), st.session_state.get("dataset_id", ""))
         st.session_state["dataset_id"] = sel_dataset or None
-        st.divider()
-        # Grouped navigation (no visible radio — section header + buttons per item)
+        st.markdown("<hr/>", unsafe_allow_html=True)
         current = st.session_state.get("_nav_page", "Dashboard")
         for group_label, items in NAV_GROUPS:
-            st.markdown(
-                f"<div class='ts-nav-group'>{group_label}</div>",
-                unsafe_allow_html=True,
-            )
+            sb_nav_group_label(group_label)
             for name, icon in items:
                 label = f"{icon}  {t(NAV_KEYS.get(name, name))}"
                 is_active = (current == name)
-                btn_type = "primary" if is_active else "secondary"
                 if st.button(label, key=f"nav_{name}", use_container_width=True,
-                             type=btn_type):
+                             type=("primary" if is_active else "secondary")):
                     st.session_state["_nav_page"] = name
                     st.rerun()
         page = st.session_state.get("_nav_page", "Dashboard")
 
-        st.divider()
-        if st.button(t("auth.sign_out")):
+        st.markdown("<hr/>", unsafe_allow_html=True)
+        st.markdown('<div class="stButton ts-signout">', unsafe_allow_html=True)
+        signed_out = st.button(t("auth.sign_out"), key="sidebar_signout",
+                               use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        if signed_out:
             st.session_state.clear()
             st.rerun()
     return page

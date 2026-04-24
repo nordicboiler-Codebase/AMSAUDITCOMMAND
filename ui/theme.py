@@ -1,212 +1,501 @@
-"""Design system — colors, spacing, typography, UI primitives.
+"""Competition-grade design system.
 
-Usage:
-    from theme import inject_css, metric_card, section_header, empty_state
-    inject_css()
-    section_header("Dashboard", "Group-wide audit posture")
-    metric_card("Open findings", 42, delta="+3 this week", trend="up")
+Tokens + primitives used across the UI. Injects a heavy custom CSS pass that
+overrides Streamlit defaults and delivers a consistent, polished look.
 """
 from __future__ import annotations
 
 import streamlit as st
 
-# ---- Design tokens ----
+# ---------- Design tokens ----------
 COLORS = {
-    "primary": "#0b2a4a",        # deep navy — brand
-    "primary_light": "#1f4e7a",
-    "accent": "#15a8a8",          # teal
-    "accent_light": "#1fd1d1",
+    # Brand
+    "primary": "#0f2a47",
+    "primary_600": "#12365b",
+    "primary_700": "#0b2039",
+    "accent": "#13c4b7",
+    "accent_600": "#0fa89d",
+    "accent_soft": "#d9f5f2",
+    # Surfaces
     "bg": "#f5f7fa",
-    "card": "#ffffff",
-    "border": "#e4e8ee",
-    "text": "#1b2735",
-    "text_muted": "#6b7684",
-    "text_subtle": "#9aa5b1",
-    "success": "#15803d",
-    "warning": "#b45309",
-    "danger": "#b91c1c",
-    "info": "#1d4ed8",
-    "critical": "#7c1d1d",
-    "high": "#b91c1c",
-    "medium": "#b45309",
+    "bg_2": "#eef2f6",
+    "surface": "#ffffff",
+    "surface_muted": "#fafbfc",
+    "border": "#e5e9ef",
+    "border_strong": "#cfd6df",
+    # Text
+    "text": "#0f172a",
+    "text_muted": "#556070",
+    "text_subtle": "#8b95a3",
+    "text_on_dark": "#e8edf3",
+    "text_on_dark_muted": "#9aa5b4",
+    # Sidebar
+    "sb_bg": "#0c1c33",
+    "sb_bg_2": "#10253f",
+    "sb_hover": "rgba(255,255,255,0.07)",
+    "sb_active_bg": "rgba(19,196,183,0.14)",
+    "sb_active_text": "#13c4b7",
+    # Semantic
+    "success": "#0d8a4d",
+    "success_soft": "#e8f6ee",
+    "warning": "#b76e00",
+    "warning_soft": "#fdf3e1",
+    "danger": "#c2342f",
+    "danger_soft": "#fae4e3",
+    "info": "#2563eb",
+    "info_soft": "#e4ecfe",
+    "critical": "#821b1a",
+    "critical_soft": "#f6dada",
+    "high": "#c2342f",
+    "high_soft": "#fae4e3",
+    "medium": "#b76e00",
+    "medium_soft": "#fdf3e1",
     "low": "#0f766e",
-}
-
-_SEVERITY_COLOR = {
-    "CRITICAL": COLORS["critical"], "HIGH": COLORS["high"],
-    "MEDIUM": COLORS["medium"], "LOW": COLORS["low"],
-}
-
-_STATUS_COLOR = {
-    "DRAFT": COLORS["text_muted"],
-    "UNDER_REVIEW": COLORS["info"],
-    "CONFIRMED": COLORS["danger"],
-    "FALSE_POSITIVE": COLORS["text_subtle"],
-    "REMEDIATED": COLORS["success"],
-    "ACCEPTED_RISK": COLORS["warning"],
-    "CARRIED_FORWARD": COLORS["info"],
-    "ACTIVE": COLORS["success"], "PAUSED": COLORS["text_muted"],
-    "PLANNING": COLORS["text_muted"], "IN_PROGRESS": COLORS["info"],
-    "REVIEW": COLORS["warning"], "FINALISED": COLORS["success"],
-    "ARCHIVED": COLORS["text_subtle"],
-    "COMPLETED": COLORS["success"], "RUNNING": COLORS["info"],
-    "PENDING": COLORS["text_muted"], "FAILED": COLORS["danger"],
+    "low_soft": "#dff4f1",
 }
 
 
-CSS = """
+def _sev_classes() -> str:
+    return "\n".join(
+        f".ts-badge.{k.lower()} {{ background: {COLORS[k.lower() + '_soft']}; color: {COLORS[k.lower()]}; }}"
+        for k in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    )
+
+
+CSS = f"""
 <style>
-/* ---- Base ---- */
-html, body, [data-testid="stAppViewContainer"] {
-  background: #f5f7fa;
-  color: #1b2735;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-}
-.block-container { padding-top: 1.25rem; padding-bottom: 3rem; max-width: 1400px; }
-h1, h2, h3, h4 { color: #0b2a4a; font-weight: 600; letter-spacing: -0.01em; }
-h1 { font-size: 1.75rem; margin-bottom: 0.3rem; }
-h2 { font-size: 1.25rem; }
-h3 { font-size: 1.05rem; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ---- Hero / section header ---- */
-.ts-section-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0 22px 0; margin-bottom: 8px;
-  border-bottom: 1px solid #e4e8ee;
-}
-.ts-section-title { font-size: 1.5rem; font-weight: 600; color: #0b2a4a; margin: 0; }
-.ts-section-subtitle { color: #6b7684; font-size: 0.9rem; margin-top: 2px; }
-.ts-section-actions { display: flex; gap: 8px; }
+/* ---------- Base ---------- */
+html, body, [data-testid="stAppViewContainer"] {{
+  background: {COLORS['bg']};
+  color: {COLORS['text']};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+}}
+* {{ box-sizing: border-box; }}
 
-/* ---- Metric card ---- */
-.ts-metric {
-  background: #ffffff; border: 1px solid #e4e8ee; border-radius: 12px;
-  padding: 18px 20px; box-shadow: 0 1px 2px rgba(11,42,74,0.04);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-.ts-metric:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(11,42,74,0.08); }
-.ts-metric-label { color: #6b7684; font-size: 0.78rem; font-weight: 500;
-                   text-transform: uppercase; letter-spacing: 0.05em; }
-.ts-metric-value { color: #0b2a4a; font-size: 2rem; font-weight: 600;
-                   line-height: 1.1; margin-top: 6px; }
-.ts-metric-delta { font-size: 0.82rem; margin-top: 6px; }
-.ts-metric-delta.up { color: #b91c1c; }
-.ts-metric-delta.down { color: #15803d; }
-.ts-metric-delta.flat { color: #6b7684; }
-.ts-metric-icon { font-size: 1.5rem; float: right; opacity: 0.6; }
+.main > div.block-container {{
+  padding-top: 1.4rem;
+  padding-bottom: 3rem;
+  max-width: 1440px;
+}}
+code, pre {{ font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }}
 
-/* ---- Card ---- */
-.ts-card {
-  background: #ffffff; border: 1px solid #e4e8ee; border-radius: 12px;
-  padding: 20px; box-shadow: 0 1px 2px rgba(11,42,74,0.04); margin-bottom: 16px;
-}
-.ts-card h3 { margin-top: 0; }
+h1, h2, h3, h4, h5 {{
+  color: {COLORS['text']};
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}}
+h1 {{ font-size: 1.75rem; margin: 0 0 4px 0; }}
+h2 {{ font-size: 1.25rem; }}
+h3 {{ font-size: 1.05rem; }}
+p {{ color: {COLORS['text']}; }}
+small, .muted {{ color: {COLORS['text_muted']}; }}
 
-/* ---- Badges ---- */
-.ts-badge {
-  display: inline-block; padding: 2px 10px; border-radius: 999px;
-  font-size: 0.75rem; font-weight: 500; letter-spacing: 0.02em;
-  background: rgba(11,42,74,0.08); color: #0b2a4a;
-}
-.ts-badge.critical { background: rgba(124,29,29,0.12); color: #7c1d1d; }
-.ts-badge.high     { background: rgba(185,28,28,0.12); color: #b91c1c; }
-.ts-badge.medium   { background: rgba(180,83,9,0.15);  color: #b45309; }
-.ts-badge.low      { background: rgba(15,118,110,0.12); color: #0f766e; }
-.ts-badge.success  { background: rgba(21,128,61,0.12); color: #15803d; }
-.ts-badge.warning  { background: rgba(180,83,9,0.15);  color: #b45309; }
-.ts-badge.danger   { background: rgba(185,28,28,0.12); color: #b91c1c; }
-.ts-badge.info     { background: rgba(29,78,216,0.1);  color: #1d4ed8; }
-.ts-badge.muted    { background: rgba(107,118,132,0.12); color: #6b7684; }
+/* ---------- Hide Streamlit chrome we don't want ---------- */
+#MainMenu {{ visibility: hidden; }}
+footer {{ visibility: hidden; }}
+header[data-testid="stHeader"] {{ background: transparent; }}
+[data-testid="stDecoration"] {{ display: none; }}
 
-/* ---- Empty state ---- */
-.ts-empty {
-  text-align: center; padding: 40px 20px; color: #6b7684;
-  background: #ffffff; border: 2px dashed #e4e8ee; border-radius: 12px;
-}
-.ts-empty-icon { font-size: 2.5rem; margin-bottom: 8px; }
-.ts-empty-title { font-size: 1rem; color: #1b2735; margin: 4px 0; font-weight: 600; }
-.ts-empty-desc { font-size: 0.85rem; }
+/* ---------- Section header ---------- */
+.ts-section-header {{
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; padding: 4px 0 20px 0; margin-bottom: 12px;
+  border-bottom: 1px solid {COLORS['border']};
+}}
+.ts-section-title {{
+  font-size: 1.6rem; font-weight: 600; color: {COLORS['text']};
+  margin: 0; letter-spacing: -0.01em;
+}}
+.ts-section-subtitle {{
+  color: {COLORS['text_muted']}; font-size: 0.88rem; margin-top: 3px;
+  max-width: 720px; line-height: 1.5;
+}}
 
-/* ---- Sidebar ---- */
-section[data-testid="stSidebar"] { background: #0b2a4a; }
-section[data-testid="stSidebar"] * { color: #e4e8ee !important; }
-section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div { background: #1f4e7a; }
-section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] textarea {
-  background: #1f4e7a !important; color: #fff !important; border-color: #1f4e7a !important;
-}
-section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 { color: #ffffff !important; }
-section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1); }
-section[data-testid="stSidebar"] .ts-nav-group {
-  color: #9aa5b1 !important; font-size: 0.7rem; font-weight: 600;
+/* ---------- Metric card ---------- */
+.ts-metric {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+  transition: all 0.15s ease;
+  position: relative;
+  min-height: 108px;
+}}
+.ts-metric:hover {{
+  border-color: {COLORS['border_strong']};
+  box-shadow: 0 4px 14px rgba(15,42,71,0.06);
+  transform: translateY(-1px);
+}}
+.ts-metric-label {{
+  color: {COLORS['text_muted']};
+  font-size: 0.72rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em;
-  padding: 14px 0 4px 8px;
-}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label { color: #e4e8ee !important; }
+}}
+.ts-metric-value {{
+  color: {COLORS['text']};
+  font-size: 2rem; font-weight: 600;
+  line-height: 1.15; margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}}
+.ts-metric-delta {{ font-size: 0.8rem; margin-top: 8px; font-weight: 500; }}
+.ts-metric-delta.up   {{ color: {COLORS['danger']}; }}
+.ts-metric-delta.down {{ color: {COLORS['success']}; }}
+.ts-metric-delta.flat {{ color: {COLORS['text_muted']}; }}
+.ts-metric-icon {{
+  position: absolute; top: 16px; right: 18px;
+  font-size: 1.3rem; opacity: 0.55;
+}}
 
-/* ---- Buttons ---- */
-.stButton > button {
-  background: #0b2a4a; color: white; border: 1px solid #0b2a4a;
-  font-weight: 500; border-radius: 8px; padding: 8px 14px;
-  transition: all 0.1s ease;
-}
-.stButton > button:hover { background: #15a8a8; border-color: #15a8a8; color: white; }
-.stButton > button:focus { box-shadow: 0 0 0 3px rgba(21,168,168,0.25); }
-.stButton > button[kind="secondary"] {
-  background: white; color: #0b2a4a; border-color: #e4e8ee;
-}
-.stDownloadButton > button { background: #15a8a8; border-color: #15a8a8; color: white; }
+/* ---------- Card ---------- */
+.ts-card {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+  margin-bottom: 16px;
+}}
+.ts-card h3 {{ margin-top: 0; margin-bottom: 14px; font-size: 0.95rem;
+              color: {COLORS['text_muted']}; text-transform: uppercase;
+              letter-spacing: 0.06em; font-weight: 600; }}
 
-/* ---- Tables ---- */
-[data-testid="stDataFrame"] { border: 1px solid #e4e8ee; border-radius: 10px; overflow: hidden; }
-[data-testid="stDataFrame"] thead tr th { background: #f5f7fa !important; color: #1b2735 !important;
-                                          font-weight: 600 !important; font-size: 0.8rem !important; }
+/* ---------- Badge ---------- */
+.ts-badge {{
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+  background: {COLORS['bg_2']}; color: {COLORS['text_muted']};
+  white-space: nowrap;
+}}
+{_sev_classes()}
+.ts-badge.success {{ background: {COLORS['success_soft']}; color: {COLORS['success']}; }}
+.ts-badge.warning {{ background: {COLORS['warning_soft']}; color: {COLORS['warning']}; }}
+.ts-badge.danger  {{ background: {COLORS['danger_soft']};  color: {COLORS['danger']}; }}
+.ts-badge.info    {{ background: {COLORS['info_soft']};    color: {COLORS['info']}; }}
+.ts-badge.muted   {{ background: {COLORS['bg_2']}; color: {COLORS['text_muted']}; }}
 
-/* ---- Inputs ---- */
-[data-baseweb="input"], [data-baseweb="select"] { border-radius: 8px !important; }
+/* ---------- Empty state ---------- */
+.ts-empty {{
+  text-align: center; padding: 48px 24px;
+  background: {COLORS['surface']};
+  border: 1px dashed {COLORS['border_strong']};
+  border-radius: 14px;
+  color: {COLORS['text_muted']};
+}}
+.ts-empty-icon {{ font-size: 2.75rem; margin-bottom: 10px; opacity: 0.85; }}
+.ts-empty-title {{ font-size: 1.05rem; color: {COLORS['text']}; margin: 4px 0;
+                   font-weight: 600; }}
+.ts-empty-desc {{ font-size: 0.86rem; max-width: 440px; margin: 0 auto; }}
 
-/* ---- Misc ---- */
-[data-testid="stMetricLabel"] { color: #6b7684 !important; }
-hr { border-color: #e4e8ee; }
-.stAlert { border-radius: 10px; }
+/* ---------- Group banner ---------- */
+.ts-group-banner {{
+  background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_600']} 55%, {COLORS['accent_600']} 120%);
+  color: white; padding: 18px 24px; border-radius: 14px; margin-bottom: 22px;
+  display: flex; align-items: center; gap: 20px;
+  box-shadow: 0 6px 20px rgba(15,42,71,0.18);
+}}
+.ts-group-banner .icon {{ font-size: 1.8rem; }}
+.ts-group-banner h4 {{ color: white; margin: 0; font-size: 1.1rem; }}
+.ts-group-banner p  {{ color: rgba(255,255,255,0.85); margin: 2px 0 0 0; font-size: 0.86rem; }}
 
-/* ---- Top-banner for group-level context ---- */
-.ts-group-banner {
-  background: linear-gradient(90deg, #0b2a4a, #15a8a8);
-  color: white; padding: 14px 20px; border-radius: 12px; margin-bottom: 18px;
-}
-.ts-group-banner h4 { color: white; margin: 0; font-size: 1.1rem; }
-.ts-group-banner p { color: rgba(255,255,255,0.85); margin: 4px 0 0 0; font-size: 0.85rem; }
+/* ---------- Heat tile ---------- */
+.ts-heat-tile {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 10px;
+  transition: all 0.15s ease;
+}}
+.ts-heat-tile:hover {{ border-color: {COLORS['border_strong']};
+                      box-shadow: 0 2px 6px rgba(15,42,71,0.06); }}
+.ts-heat-tile .code   {{ font-size: 0.7rem; color: {COLORS['text_muted']};
+                         font-weight: 600; letter-spacing: 0.06em; }}
+.ts-heat-tile .name   {{ font-size: 0.95rem; color: {COLORS['text']};
+                         font-weight: 600; margin-top: 2px; }}
+.ts-heat-tile .score  {{ font-size: 1.6rem; font-weight: 700;
+                         font-variant-numeric: tabular-nums; margin-top: 4px;
+                         line-height: 1; }}
+.ts-heat-tile .meta   {{ font-size: 0.75rem; color: {COLORS['text_muted']};
+                         margin-top: 6px; }}
 
-/* ---- Risk heat tiles ---- */
-.ts-heat-tile {
-  background: white; border: 1px solid #e4e8ee; border-radius: 10px;
-  padding: 14px; margin-bottom: 10px;
-}
-.ts-heat-tile .code { font-size: 0.72rem; color: #6b7684; font-weight: 600; letter-spacing: 0.05em; }
-.ts-heat-tile .name { font-size: 0.95rem; color: #1b2735; font-weight: 600; margin-top: 2px; }
-.ts-heat-tile .score { font-size: 1.5rem; font-weight: 700; }
-.ts-heat-tile .meta { font-size: 0.75rem; color: #6b7684; }
+/* ---------- SIDEBAR — dark, branded, polished ---------- */
+section[data-testid="stSidebar"] {{
+  background: {COLORS['sb_bg']};
+  border-right: 1px solid {COLORS['primary_700']};
+}}
+section[data-testid="stSidebar"] > div:first-child {{
+  padding-top: 1rem;
+}}
+section[data-testid="stSidebar"] * {{ color: {COLORS['text_on_dark']}; }}
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {{ color: white !important; }}
+section[data-testid="stSidebar"] hr {{
+  border-color: rgba(255,255,255,0.08);
+  margin: 14px 0;
+}}
+section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] small,
+section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] div {{
+  color: {COLORS['text_on_dark_muted']};
+}}
+
+/* Inputs in sidebar */
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] textarea,
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {{
+  background: {COLORS['sb_bg_2']} !important;
+  color: {COLORS['text_on_dark']} !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  border-radius: 8px !important;
+}}
+section[data-testid="stSidebar"] [data-baseweb="select"] span,
+section[data-testid="stSidebar"] [data-baseweb="select"] div {{
+  color: {COLORS['text_on_dark']} !important;
+}}
+
+/* Nav group label */
+section[data-testid="stSidebar"] .ts-nav-group {{
+  color: rgba(255,255,255,0.4) !important;
+  font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  padding: 16px 4px 6px 8px;
+}}
+
+/* Sidebar buttons are our nav items — kill white bg entirely */
+section[data-testid="stSidebar"] .stButton {{ margin: 2px 0 !important; }}
+section[data-testid="stSidebar"] .stButton > button {{
+  background: transparent !important;
+  color: {COLORS['text_on_dark_muted']} !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 9px 14px !important;
+  font-weight: 500 !important;
+  font-size: 0.88rem !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  box-shadow: none !important;
+  transition: all 0.12s ease;
+  min-height: unset !important;
+  height: auto !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:hover {{
+  background: {COLORS['sb_hover']} !important;
+  color: white !important;
+  transform: none !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:focus {{
+  box-shadow: none !important;
+  outline: none !important;
+}}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"] {{
+  background: {COLORS['sb_active_bg']} !important;
+  color: {COLORS['sb_active_text']} !important;
+  font-weight: 600 !important;
+  border-left: 3px solid {COLORS['accent']} !important;
+  padding-left: 11px !important;
+}}
+
+/* Sidebar sign-out button */
+section[data-testid="stSidebar"] .stButton.ts-signout > button {{
+  background: rgba(194,52,47,0.18) !important;
+  color: #ffd4d3 !important;
+  text-align: center !important; justify-content: center !important;
+  border: 1px solid rgba(194,52,47,0.35) !important;
+}}
+
+/* User card / brand strip / project pill in sidebar */
+.ts-sb-brand {{
+  padding: 2px 8px 14px 8px; text-align: center;
+}}
+.ts-sb-brand .logo {{ font-size: 1.8rem; line-height: 1; }}
+.ts-sb-brand .title {{
+  color: white; font-weight: 700; font-size: 0.95rem;
+  margin-top: 6px; letter-spacing: -0.01em;
+}}
+.ts-sb-brand .tag {{
+  color: rgba(255,255,255,0.45); font-size: 0.65rem;
+  text-transform: uppercase; letter-spacing: 0.12em; margin-top: 2px;
+}}
+.ts-sb-user {{
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px 0;
+}}
+.ts-sb-user .name {{ color: white; font-weight: 600; font-size: 0.88rem; }}
+.ts-sb-user .role {{ color: rgba(255,255,255,0.55); font-size: 0.7rem;
+                    text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }}
+
+/* ---------- BUTTONS (main area) ---------- */
+.stButton > button {{
+  background: {COLORS['primary']};
+  color: white;
+  border: 1px solid {COLORS['primary']};
+  font-weight: 500; border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  transition: all 0.12s ease;
+  box-shadow: 0 1px 2px rgba(15,42,71,0.08);
+}}
+.stButton > button:hover {{
+  background: {COLORS['primary_600']};
+  border-color: {COLORS['primary_600']};
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15,42,71,0.12);
+}}
+.stButton > button:focus {{
+  box-shadow: 0 0 0 3px {COLORS['accent_soft']};
+  outline: none;
+}}
+.stButton > button[kind="secondary"] {{
+  background: white; color: {COLORS['text']};
+  border: 1px solid {COLORS['border_strong']};
+}}
+.stButton > button[kind="secondary"]:hover {{
+  background: {COLORS['surface_muted']}; border-color: {COLORS['text_muted']};
+  color: {COLORS['text']};
+}}
+.stDownloadButton > button {{
+  background: {COLORS['accent']};
+  border-color: {COLORS['accent']}; color: white;
+}}
+.stDownloadButton > button:hover {{
+  background: {COLORS['accent_600']}; border-color: {COLORS['accent_600']};
+}}
+
+/* ---------- Inputs ---------- */
+[data-baseweb="input"] > div, [data-baseweb="textarea"] > div,
+[data-baseweb="select"] > div {{
+  border-radius: 10px !important;
+  border-color: {COLORS['border']} !important;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}}
+[data-baseweb="input"] > div:focus-within,
+[data-baseweb="textarea"] > div:focus-within,
+[data-baseweb="select"] > div:focus-within {{
+  border-color: {COLORS['accent']} !important;
+  box-shadow: 0 0 0 3px {COLORS['accent_soft']} !important;
+}}
+
+/* ---------- Forms ---------- */
+[data-testid="stForm"] {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 14px; padding: 20px; margin: 6px 0;
+}}
+
+/* ---------- Tables / dataframe ---------- */
+[data-testid="stDataFrame"] {{
+  border: 1px solid {COLORS['border']}; border-radius: 12px; overflow: hidden;
+}}
+[data-testid="stDataFrame"] [class*="header"] {{
+  background: {COLORS['surface_muted']} !important;
+  color: {COLORS['text']} !important; font-weight: 600 !important;
+  font-size: 0.78rem !important; text-transform: uppercase;
+  letter-spacing: 0.05em;
+}}
+
+/* ---------- Expanders ---------- */
+[data-testid="stExpander"] {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(15,42,71,0.03);
+}}
+[data-testid="stExpander"] summary {{ font-weight: 600; color: {COLORS['text']}; }}
+
+/* ---------- Tabs ---------- */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {{
+  gap: 4px; border-bottom: 1px solid {COLORS['border']};
+}}
+[data-testid="stTabs"] [data-baseweb="tab"] {{
+  color: {COLORS['text_muted']}; font-weight: 500; padding: 10px 18px;
+  border-radius: 8px 8px 0 0; background: transparent;
+}}
+[data-testid="stTabs"] [aria-selected="true"] {{
+  color: {COLORS['primary']} !important; font-weight: 600;
+  background: transparent !important;
+  border-bottom: 2px solid {COLORS['accent']} !important;
+}}
+
+/* ---------- Alerts ---------- */
+.stAlert {{ border-radius: 12px; border: 1px solid {COLORS['border']}; }}
+
+/* ---------- Metric widget (when used) ---------- */
+[data-testid="stMetric"] {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 14px; padding: 16px;
+}}
+[data-testid="stMetricLabel"] {{ color: {COLORS['text_muted']} !important;
+                                 font-weight: 600 !important;
+                                 text-transform: uppercase; letter-spacing: 0.06em;
+                                 font-size: 0.7rem !important; }}
+[data-testid="stMetricValue"] {{ color: {COLORS['text']} !important;
+                                 font-variant-numeric: tabular-nums; }}
+
+/* ---------- Hero strip (login) ---------- */
+.ts-hero {{
+  background: linear-gradient(135deg, {COLORS['primary']}, {COLORS['primary_600']});
+  border-radius: 20px; padding: 40px;
+  color: white; box-shadow: 0 20px 50px rgba(15,42,71,0.25);
+}}
+.ts-hero h1 {{ color: white; font-size: 2rem; margin: 0; }}
+.ts-hero p {{ color: rgba(255,255,255,0.8); margin-top: 6px; }}
+
+/* ---------- Auth form wrapper ---------- */
+.ts-auth-box {{
+  background: {COLORS['surface']};
+  border: 1px solid {COLORS['border']};
+  border-radius: 18px; padding: 28px;
+  box-shadow: 0 12px 40px rgba(15,42,71,0.08);
+}}
+
+/* ---------- Scrollbars ---------- */
+::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+::-webkit-scrollbar-track {{ background: transparent; }}
+::-webkit-scrollbar-thumb {{ background: {COLORS['border_strong']}; border-radius: 10px; }}
+::-webkit-scrollbar-thumb:hover {{ background: {COLORS['text_muted']}; }}
+
+/* ---------- Divider ---------- */
+hr {{ border: none; border-top: 1px solid {COLORS['border']}; margin: 12px 0; }}
+
+/* ---------- Pill filter chips ---------- */
+.ts-chip {{
+  display: inline-flex; align-items: center; gap: 6px;
+  background: {COLORS['surface']}; border: 1px solid {COLORS['border']};
+  border-radius: 999px; padding: 5px 12px; margin-right: 6px;
+  font-size: 0.78rem; color: {COLORS['text_muted']}; font-weight: 500;
+}}
+.ts-chip.active {{ background: {COLORS['primary']}; color: white;
+                    border-color: {COLORS['primary']}; }}
 </style>
 """
 
 
 def inject_css() -> None:
-    if "_ts_css_injected" in st.session_state:
-        pass
     st.markdown(CSS, unsafe_allow_html=True)
-    st.session_state["_ts_css_injected"] = True
 
 
-def section_header(title: str, subtitle: str | None = None) -> None:
-    sub_html = f'<div class="ts-section-subtitle">{subtitle}</div>' if subtitle else ""
+# ---------- Primitives ----------
+def section_header(title: str, subtitle: str | None = None, actions_html: str = "") -> None:
+    sub = f'<div class="ts-section-subtitle">{subtitle}</div>' if subtitle else ""
     st.markdown(
         f"""
         <div class="ts-section-header">
           <div>
             <div class="ts-section-title">{title}</div>
-            {sub_html}
+            {sub}
           </div>
+          <div>{actions_html}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -218,11 +507,9 @@ def metric_card(
     icon: str = "", accent: str | None = None,
 ) -> None:
     value_str = f"{value:,}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
-    delta_html = ""
-    if delta:
-        delta_html = f'<div class="ts-metric-delta {trend}">{delta}</div>'
+    delta_html = f'<div class="ts-metric-delta {trend}">{delta}</div>' if delta else ""
     icon_html = f'<span class="ts-metric-icon">{icon}</span>' if icon else ""
-    style = f'style="border-left: 4px solid {accent};"' if accent else ""
+    style = f'style="border-left: 3px solid {accent};"' if accent else ""
     st.markdown(
         f"""
         <div class="ts-metric" {style}>
@@ -237,17 +524,28 @@ def metric_card(
 
 
 def severity_badge(severity: str) -> str:
-    c = severity.lower()
-    return f'<span class="ts-badge {c}">{severity}</span>'
+    return f'<span class="ts-badge {severity.lower()}">{severity}</span>'
+
+
+_STATUS_CLASS = {
+    "DRAFT": "muted", "UNDER_REVIEW": "info", "CONFIRMED": "danger",
+    "FALSE_POSITIVE": "muted", "REMEDIATED": "success",
+    "ACCEPTED_RISK": "warning", "CARRIED_FORWARD": "info",
+    "ACTIVE": "success", "PAUSED": "muted",
+    "PLANNING": "muted", "IN_PROGRESS": "info",
+    "REVIEW": "warning", "FINALISED": "success", "ARCHIVED": "muted",
+    "COMPLETED": "success", "RUNNING": "info",
+    "PENDING": "muted", "FAILED": "danger",
+}
 
 
 def status_badge(status: str) -> str:
-    color = _STATUS_COLOR.get(status, COLORS["text_muted"])
-    return f'<span class="ts-badge" style="background: {color}22; color: {color};">{status.replace("_", " ")}</span>'
+    cls = _STATUS_CLASS.get(status, "muted")
+    return f'<span class="ts-badge {cls}">{status.replace("_", " ")}</span>'
 
 
-def empty_state(icon: str, title: str, description: str, cta_label: str | None = None,
-                cta_key: str | None = None) -> bool:
+def empty_state(icon: str, title: str, description: str,
+                cta_label: str | None = None, cta_key: str | None = None) -> bool:
     st.markdown(
         f"""
         <div class="ts-empty">
@@ -263,12 +561,15 @@ def empty_state(icon: str, title: str, description: str, cta_label: str | None =
     return False
 
 
-def group_banner(title: str, description: str) -> None:
+def group_banner(title: str, description: str, icon: str = "🏢") -> None:
     st.markdown(
         f"""
         <div class="ts-group-banner">
-          <h4>{title}</h4>
-          <p>{description}</p>
+          <div class="icon">{icon}</div>
+          <div>
+            <h4>{title}</h4>
+            <p>{description}</p>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -284,7 +585,7 @@ def heat_tile(code: str, name: str, score: float, meta: str = "") -> None:
     )
     st.markdown(
         f"""
-        <div class="ts-heat-tile" style="border-left: 4px solid {color};">
+        <div class="ts-heat-tile" style="border-left-color: {color};">
           <div class="code">{code}</div>
           <div class="name">{name}</div>
           <div class="score" style="color: {color};">{score:.0f}</div>
@@ -296,9 +597,34 @@ def heat_tile(code: str, name: str, score: float, meta: str = "") -> None:
 
 
 def card_open(title: str | None = None) -> None:
-    st.markdown(f'<div class="ts-card">{"<h3>" + title + "</h3>" if title else ""}',
-                unsafe_allow_html=True)
+    header = f'<h3>{title}</h3>' if title else ''
+    st.markdown(f'<div class="ts-card">{header}', unsafe_allow_html=True)
 
 
 def card_close() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
+
+
+def sb_brand() -> None:
+    st.markdown(
+        """
+        <div class="ts-sb-brand">
+          <div class="logo">🛡️</div>
+          <div class="title">TechSource Audit</div>
+          <div class="tag">Group audit intelligence</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def sb_user(username: str, role: str) -> None:
+    st.markdown(
+        f'<div class="ts-sb-user"><div class="name">{username}</div>'
+        f'<div class="role">{role}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def sb_nav_group_label(label: str) -> None:
+    st.markdown(f'<div class="ts-nav-group">{label}</div>', unsafe_allow_html=True)
