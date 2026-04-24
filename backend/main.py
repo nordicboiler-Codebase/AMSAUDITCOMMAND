@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,12 +13,21 @@ settings = get_settings()
 configure_logging(settings.log_level)
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    from backend.services import scheduler
+    scheduler.start()
+    yield
+    # on shutdown: nothing critical — APScheduler daemon threads die with the process
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="TechSource Audit Analytics",
         version="0.1.0",
         description="Detector + Template audit analytics platform",
         dependencies=[Depends(global_rate_limit)],
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -30,12 +41,6 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok", "service": "techsource-audit-analytics"}
-
-    @app.on_event("startup")
-    def _start_scheduler() -> None:
-        from backend.services import scheduler
-
-        scheduler.start()
 
     from backend.api import (
         auth,

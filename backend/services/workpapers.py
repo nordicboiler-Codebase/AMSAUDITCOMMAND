@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import json
 import uuid
 import zipfile
 from datetime import datetime, timezone
 from typing import Any
+
+from backend.core.config import get_settings
 
 import polars as pl
 from sqlalchemy import select
@@ -175,11 +179,35 @@ def export_engagement_bundle(
         # README for the bundle
         z.writestr("README.txt", _readme_text(engagement, project, user))
 
-    data = buf.getvalue()
+    # Append a detached signature file that recipients can verify independently.
+    # SHA-256 of the zip contents + HMAC using SECRET_KEY. Not PKI, but tamper-evident.
+    # Rebuild the zip to include the signature side-file.
+    body_so_far = buf.getvalue()
+    digest = hashlib.sha256(body_so_far).hexdigest()
+    signing_key = get_settings().secret_key.encode("utf-8")
+    hmac_sig = hmac.new(signing_key, body_so_far, hashlib.sha256).hexdigest()
+
+    final_buf = io.BytesIO()
+    with zipfile.ZipFile(final_buf, "w", zipfile.ZIP_DEFLATED) as outer:
+        outer.writestr("bundle.zip", body_so_far)
+        outer.writestr(
+            "bundle.sig.json",
+            json.dumps({
+                "algorithm": "HMAC-SHA256",
+                "sha256": digest,
+                "hmac_sha256": hmac_sig,
+                "signed_at": datetime.now(timezone.utc).isoformat(),
+                "signed_by": str(user.id),
+                "note": "Recipient: compute sha256(bundle.zip); compare to sha256. "
+                        "For full tamper proof, request HMAC verification from TechSource Audit.",
+            }, indent=2),
+        )
+    data = final_buf.getvalue()
+
     audit_log.log_action(
         db, user_id=user.id, action=AuditAction.EXPORT, entity_type="engagement",
         entity_id=str(engagement.id), project_id=engagement.project_id,
-        details={"format": format, "bytes": len(data)},
+        details={"format": format, "bytes": len(data), "sha256": digest, "hmac": hmac_sig},
     )
     db.commit()
     filename = f"{engagement.code}_workpaper_bundle.zip"

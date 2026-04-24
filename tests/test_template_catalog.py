@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 
-def test_seed_data_has_143_templates():
+def test_seed_data_has_148_templates():
     from backend.templates.seed_data import TEMPLATES
 
-    assert len(TEMPLATES) == 143, f"Expected 143 templates, got {len(TEMPLATES)}"
+    assert len(TEMPLATES) == 148, f"Expected 148 templates, got {len(TEMPLATES)}"
 
 
 def test_every_template_detector_exists(detector_catalog):

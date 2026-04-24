@@ -567,9 +567,34 @@ AN = [
      "GL account residuals beyond seasonal expectation"),
 ]
 
-TEMPLATES: list[tuple] = [*UNIVERSAL, *AP, *AR, *GL, *PR, *FA, *IN, *BK, *PO, *TE, *SL, *AN]
+ORPHAN = [
+    ("AN08", "Sequence Order Violations", "sequence_order",
+     {"key_field": "invoice_no", "ascending": True},
+     None, "ANALYTICAL", 0.5, ["sequence"],
+     "Records out of expected ascending order"),
+    ("AN09", "Stratify Amount Bands", "stratify",
+     {"field": "amount", "auto_intervals": 10},
+     None, "ANALYTICAL", 0.2, ["stratify"],
+     "Bucket amounts into 10 equal-width bands"),
+    ("AN10", "Histogram of Amount", "histogram",
+     {"field": "amount", "bins": 20},
+     None, "ANALYTICAL", 0.2, ["histogram"],
+     "Frequency distribution of amount field"),
+    ("AN11", "Cross-Tabulate Vendor vs GL Account", "cross_tabulate",
+     {"row_field": "vendor_id", "column_field": "gl_account"},
+     None, "ANALYTICAL", 0.2, ["pivot"],
+     "Two-field pivot of vendor against GL account"),
+    ("U16", "Unusual Text Patterns in Description", "text_anomaly",
+     {"text_field": "description", "checks": ["all_caps", "too_short", "excessive_symbols"]},
+     None, "DATA_QUALITY", 0.5, ["quality", "text"],
+     "Flag rows with all-caps, extremely short, or symbol-heavy text"),
+]
 
-assert len(TEMPLATES) == 143, f"Expected 143 templates, got {len(TEMPLATES)}"
+TEMPLATES: list[tuple] = [
+    *UNIVERSAL, *AP, *AR, *GL, *PR, *FA, *IN, *BK, *PO, *TE, *SL, *AN, *ORPHAN,
+]
+
+assert len(TEMPLATES) == 148, f"Expected 148 templates, got {len(TEMPLATES)}"
 
 
 

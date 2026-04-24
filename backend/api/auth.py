@@ -139,10 +139,38 @@ def mfa_disable(body: MfaTokenIn, user: User = Depends(get_current_user),
 
 
 @router.get("/me")
-def me(user: User = Depends(get_current_user)) -> dict:
+def me(request: Request, user: User = Depends(get_current_user)) -> dict:
+    # Extract token expiry for session-warning banners in the UI.
+    exp_iso: str | None = None
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        from jose import JWTError
+        from datetime import datetime, timezone
+
+        from backend.core.security import decode_token
+
+        try:
+            payload = decode_token(auth.split(" ", 1)[1])
+            exp = payload.get("exp")
+            if exp:
+                exp_iso = datetime.fromtimestamp(int(exp), tz=timezone.utc).isoformat()
+        except JWTError:
+            pass
     return {
         "id": str(user.id), "username": user.username, "email": user.email,
         "role": user.role.value, "mfa_enabled": user.mfa_enabled,
+        "session_expires_at": exp_iso,
+    }
+
+
+@router.post("/refresh")
+def refresh(user: User = Depends(get_current_user)) -> dict:
+    """Issue a fresh JWT for a still-logged-in user (slides the expiry forward)."""
+    return {
+        "access_token": create_token(
+            str(user.id), {"username": user.username, "role": user.role.value},
+        ),
+        "token_type": "bearer",
     }
 
 

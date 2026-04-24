@@ -213,8 +213,33 @@ NAV_KEYS = {
 }
 
 
+def _session_warning() -> None:
+    exp = st.session_state.get("user", {}).get("session_expires_at")
+    if not exp:
+        return
+    from datetime import datetime, timezone
+
+    try:
+        remaining = (datetime.fromisoformat(exp) - datetime.now(timezone.utc)).total_seconds()
+    except Exception:
+        return
+    if 0 < remaining < 300:
+        mins = int(remaining // 60)
+        cols = st.columns([5, 1])
+        cols[0].warning(f"⏰ Session expires in {mins}m — click to extend")
+        if cols[1].button("Extend session"):
+            r = api_post("/api/auth/refresh")
+            if r.status_code == 200:
+                st.session_state["token"] = r.json()["access_token"]
+                me = _fetch_me_with_token(st.session_state["token"])
+                if me:
+                    st.session_state["user"] = me
+                st.rerun()
+
+
 def sidebar() -> str:
     apply_rtl_if_needed()
+    _session_warning()
     with st.sidebar:
         _lang_picker("sidebar")
         st.markdown(f"### {st.session_state['user']['username']}")
