@@ -138,7 +138,7 @@ def _fire_monitor(db: Session, *, monitor: Monitor, dataset: Dataset,
 
 def _auto_finding_code(db: Session) -> str:
     year = date.today().year
-    prefix = f"F-{year}-"
+    prefix = f"AUTO-{year}-"
     n = db.execute(
         select(func.count()).select_from(Finding).where(Finding.code.like(f"{prefix}%"))
     ).scalar_one()

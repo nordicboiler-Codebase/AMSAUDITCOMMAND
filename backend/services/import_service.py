@@ -99,7 +99,14 @@ def import_dataset(
     user_id: uuid.UUID,
     description: str | None = None,
 ) -> ImportResult:
+    from sqlalchemy import select
+
     settings.ensure_dirs()
+    existing = db.execute(
+        select(Dataset).where(Dataset.project_id == project_id, Dataset.name == name)
+    ).scalar_one_or_none()
+    if existing:
+        raise ValueError(f"Dataset name '{name}' already exists in this project")
     source_hash = _sha256(file_path)
 
     df = _load_dataframe(file_path)

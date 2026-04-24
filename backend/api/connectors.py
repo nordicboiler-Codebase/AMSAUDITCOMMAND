@@ -39,6 +39,15 @@ class PullIn(BaseModel):
     description: str | None = None
 
 
+def _redact_config(config: dict, schema: dict) -> dict:
+    """Strip values for fields flagged secret:true in the connector schema."""
+    safe = dict(config)
+    for k, meta in schema.items():
+        if meta.get("secret") and safe.get(k):
+            safe[k] = "***REDACTED***"
+    return safe
+
+
 @router.post("/pull-and-import")
 def pull_and_import(body: PullIn, db: Session = Depends(get_db),
                     user: User = Depends(get_current_user)) -> dict:
@@ -48,6 +57,7 @@ def pull_and_import(body: PullIn, db: Session = Depends(get_db),
         connector = conn_registry.get_connector(body.connector)
     except conn_registry.ConnectorError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    safe_config = _redact_config(body.config, connector.config_schema)
 
     try:
         result = connector.fetch(config=body.config, stage_dir=settings.upload_dir)
@@ -78,4 +88,5 @@ def pull_and_import(body: PullIn, db: Session = Depends(get_db),
         "rows_pulled": result.rows,
         "bytes_pulled": result.bytes_pulled,
         "source_metadata": result.source_metadata,
+        "config_used": safe_config,
     }

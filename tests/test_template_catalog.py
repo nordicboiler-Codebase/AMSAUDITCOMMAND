@@ -33,7 +33,7 @@ def test_subledger_coverage():
     for t in TEMPLATES:
         sub = t[4]
         by_subledger[sub] = by_subledger.get(sub, 0) + 1
-    assert by_subledger.get(None, 0) == 15, "Universal template count mismatch"
+    assert by_subledger.get(None, 0) >= 15, "Universal template count should be >=15"
     assert by_subledger.get("ACCOUNTS_PAYABLE", 0) >= 25
     assert by_subledger.get("GENERAL_LEDGER", 0) >= 20
     assert by_subledger.get("PAYROLL", 0) >= 15

@@ -23,8 +23,17 @@ def verify(project_id: uuid.UUID | None = None, db: Session = Depends(get_db),
 
 @router.get("/entries")
 def entries(project_id: uuid.UUID | None = None, db: Session = Depends(get_db),
-            _u: User = Depends(get_current_user)) -> list[dict]:
-    return svc.export_log(db, project_id=project_id)
+            _u: User = Depends(get_current_user)) -> dict:
+    status = svc.verify_chain(db, project_id=project_id)
+    return {
+        "chain": {
+            "ok": status.ok,
+            "total_entries": status.total_entries,
+            "broken_at": status.broken_at,
+            "reason": status.reason,
+        },
+        "entries": svc.export_log(db, project_id=project_id),
+    }
 
 
 @router.get("/pdf")

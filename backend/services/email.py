@@ -141,26 +141,40 @@ def _send_via_graph(cfg: dict, to: list[str], subject: str, body_html: str) -> N
 
 
 def send_email(db: Session, *, to: list[str], subject: str, body_html: str,
-               body_text: str | None = None) -> dict:
+               body_text: str | None = None, max_retries: int = 3) -> dict:
+    import logging
+    import time
+
     cfg = get_config(db, decrypt=True)
     if not cfg["enabled"]:
         raise RuntimeError("Email is not enabled")
     if not cfg.get("from_address"):
         raise RuntimeError("Email from_address not configured")
 
-    if cfg["provider"] == "graph":
-        _send_via_graph(cfg, to, subject, body_html)
-    else:
-        msg = EmailMessage()
-        msg["From"] = f"{cfg.get('from_name','')} <{cfg['from_address']}>".strip()
-        msg["To"] = ", ".join(to)
-        msg["Subject"] = subject
-        if body_text:
-            msg.set_content(body_text)
-        msg.add_alternative(body_html, subtype="html")
-        _send_via_smtp(cfg, msg)
+    last_error: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            if cfg["provider"] == "graph":
+                _send_via_graph(cfg, to, subject, body_html)
+            else:
+                msg = EmailMessage()
+                msg["From"] = f"{cfg.get('from_name','')} <{cfg['from_address']}>".strip()
+                msg["To"] = ", ".join(to)
+                msg["Subject"] = subject
+                if body_text:
+                    msg.set_content(body_text)
+                msg.add_alternative(body_html, subtype="html")
+                _send_via_smtp(cfg, msg)
+            return {"sent": True, "to": to, "provider": cfg["provider"], "attempts": attempt + 1}
+        except Exception as e:
+            last_error = e
+            logging.getLogger(__name__).warning(
+                "Email send attempt %d/%d failed: %s", attempt + 1, max_retries, e,
+            )
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s backoff
 
-    return {"sent": True, "to": to, "provider": cfg["provider"]}
+    raise last_error if last_error else RuntimeError("Email send failed")
 
 
 def send_message(db: Session, *, to: list[str], subject: str, body_text: str,
