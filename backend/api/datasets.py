@@ -12,7 +12,7 @@ from backend.core.config import get_settings
 from backend.core.db import get_db
 from backend.core.security import get_current_user
 from backend.models import Dataset, SubledgerType, User
-from backend.services import import_service
+from backend.services import acl, import_service
 
 router = APIRouter()
 settings = get_settings()
@@ -20,10 +20,16 @@ settings = get_settings()
 
 @router.get("")
 def list_datasets(project_id: uuid.UUID | None = None, db: Session = Depends(get_db),
-                  _u: User = Depends(get_current_user)) -> list[dict]:
+                  user: User = Depends(get_current_user)) -> list[dict]:
     q = select(Dataset)
     if project_id is not None:
+        acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.VIEW)
         q = q.where(Dataset.project_id == project_id)
+    else:
+        visible = acl.visible_project_ids(db, user=user)
+        if not visible:
+            return []
+        q = q.where(Dataset.project_id.in_(visible))
     q = q.order_by(Dataset.imported_at.desc())
     return [_ds_out(d) for d in db.execute(q).scalars()]
 
@@ -38,6 +44,7 @@ async def import_dataset(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
+    acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.EDIT)
     settings.ensure_dirs()
     dest = settings.upload_dir / f"{uuid.uuid4()}_{file.filename}"
     with open(dest, "wb") as f:
@@ -63,10 +70,11 @@ async def import_dataset(
 
 @router.get("/{dataset_id}")
 def get_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db),
-                _u: User = Depends(get_current_user)) -> dict:
+                user: User = Depends(get_current_user)) -> dict:
     ds = db.get(Dataset, dataset_id)
     if not ds:
         raise HTTPException(status_code=404, detail="Not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.VIEW)
     return _ds_out(ds)
 
 
@@ -91,10 +99,11 @@ def schema(dataset_id: uuid.UUID, db: Session = Depends(get_db),
 
 @router.get("/{dataset_id}/control-totals")
 def control_totals(dataset_id: uuid.UUID, db: Session = Depends(get_db),
-                   _u: User = Depends(get_current_user)) -> dict:
+                   user: User = Depends(get_current_user)) -> dict:
     ds = db.get(Dataset, dataset_id)
     if not ds:
         raise HTTPException(status_code=404, detail="Not found")
+    acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.VIEW)
     return ds.control_totals
 
 
