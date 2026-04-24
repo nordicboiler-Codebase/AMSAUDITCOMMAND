@@ -1,0 +1,36 @@
+{
+  "name": "TechSource Audit Analytics",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {}
+  },
+  "forwardPorts": [8000, 8501, 5432],
+  "portsAttributes": {
+    "8000": { "label": "API (FastAPI)", "onAutoForward": "notify" },
+    "8501": { "label": "UI (Streamlit)", "onAutoForward": "openBrowser" },
+    "5432": { "label": "Postgres", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "./scripts/bootstrap.sh",
+  "postStartCommand": "docker compose up -d db",
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql+psycopg2://audit:audit@127.0.0.1:5432/audit",
+    "SECRET_KEY": "dev-secret-change-me",
+    "DATA_DIR": "/workspaces/${localWorkspaceFolderBasename}/data",
+    "API_BASE_URL": "http://127.0.0.1:8000"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"]
+      }
+    }
+  }
+}
