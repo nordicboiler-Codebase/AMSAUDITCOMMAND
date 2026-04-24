@@ -11,7 +11,7 @@ from backend.core.db import get_db
 from backend.core.security import create_token, get_current_user, hash_password, verify_password
 from backend.models import AuditAction, User
 from backend.models.enums import UserRole
-from backend.services import audit_log, sso
+from backend.services import audit_log, mfa, sso
 
 router = APIRouter()
 
@@ -43,21 +43,85 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> dict:
     return {"id": str(user.id), "username": user.username}
 
 
-@router.post("/token", response_model=TokenOut)
-def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> TokenOut:
+@router.post("/token")
+def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> dict:
     user = db.execute(select(User).where(User.username == form.username)).scalar_one_or_none()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if user.mfa_enabled:
+        challenge = mfa.create_challenge_token(user.id)
+        return {"mfa_required": True, "challenge_token": challenge}
     audit_log.log_action(db, user_id=user.id, action=AuditAction.LOGIN,
                          entity_type="user", entity_id=str(user.id))
     db.commit()
-    return TokenOut(access_token=create_token(str(user.id), {"username": user.username,
-                                                             "role": user.role.value}))
+    return {
+        "access_token": create_token(str(user.id), {"username": user.username, "role": user.role.value}),
+        "token_type": "bearer",
+        "mfa_required": False,
+    }
+
+
+class MfaVerifyIn(BaseModel):
+    challenge_token: str
+    token: str
+
+
+@router.post("/mfa/verify")
+def mfa_verify(body: MfaVerifyIn, db: Session = Depends(get_db)) -> dict:
+    try:
+        user_id = mfa.decode_challenge_token(body.challenge_token)
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+    user = db.get(User, user_id)
+    if not user or not user.mfa_enabled or not user.totp_secret:
+        raise HTTPException(status_code=400, detail="MFA not configured for this user")
+    if not mfa.verify_totp(user.totp_secret, body.token):
+        raise HTTPException(status_code=401, detail="Invalid TOTP code")
+    audit_log.log_action(db, user_id=user.id, action=AuditAction.LOGIN,
+                         entity_type="user", entity_id=str(user.id),
+                         details={"mfa": True})
+    db.commit()
+    return {
+        "access_token": create_token(str(user.id), {"username": user.username, "role": user.role.value, "mfa": True}),
+        "token_type": "bearer",
+    }
+
+
+class MfaTokenIn(BaseModel):
+    token: str
+
+
+@router.post("/mfa/setup")
+def mfa_setup(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return mfa.start_setup(db, user)
+
+
+@router.post("/mfa/enable")
+def mfa_enable(body: MfaTokenIn, user: User = Depends(get_current_user),
+               db: Session = Depends(get_db)) -> dict:
+    try:
+        return mfa.enable(db, user, body.token)
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/mfa/disable")
+def mfa_disable(body: MfaTokenIn, user: User = Depends(get_current_user),
+                db: Session = Depends(get_db)) -> dict:
+    try:
+        return mfa.disable(db, user, body.token)
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
 
 
 @router.get("/me")
 def me(user: User = Depends(get_current_user)) -> dict:
-    return {"id": str(user.id), "username": user.username, "email": user.email, "role": user.role.value}
+    return {
+        "id": str(user.id), "username": user.username, "email": user.email,
+        "role": user.role.value, "mfa_enabled": user.mfa_enabled,
+    }
 
 
 @router.get("/sso/login")
