@@ -55,6 +55,8 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class Project(Base, TimestampMixin):

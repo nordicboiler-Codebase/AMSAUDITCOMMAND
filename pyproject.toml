@@ -19,6 +19,7 @@ dependencies = [
   "python-jose[cryptography]>=3.3",
   "passlib[bcrypt]>=1.7",
   "bcrypt<4.1",
+  "pyotp>=2.9",
   "pydantic>=2.6",
   "pydantic-settings>=2.2",
   "rapidfuzz>=3.6",
