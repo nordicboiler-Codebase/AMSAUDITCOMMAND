@@ -29,6 +29,12 @@ def create_app() -> FastAPI:
     def health() -> dict:
         return {"status": "ok", "service": "techsource-audit-analytics"}
 
+    @app.on_event("startup")
+    def _start_scheduler() -> None:
+        from backend.services import scheduler
+
+        scheduler.start()
+
     from backend.api import (
         auth,
         audit_log,

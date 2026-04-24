@@ -163,6 +163,12 @@ def send_email(db: Session, *, to: list[str], subject: str, body_html: str,
     return {"sent": True, "to": to, "provider": cfg["provider"]}
 
 
+def send_message(db: Session, *, to: list[str], subject: str, body_text: str,
+                 body_html: str | None = None) -> None:
+    html = body_html or f"<pre style='font-family:DejaVu Sans Mono,monospace'>{body_text}</pre>"
+    send_email(db, to=to, subject=subject, body_html=html, body_text=body_text)
+
+
 def send_test_email(db: Session, *, to: str, user_id: uuid.UUID) -> dict:
     result = send_email(
         db, to=[to],
