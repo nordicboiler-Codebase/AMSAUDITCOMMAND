@@ -64,6 +64,8 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     totp_secret: Mapped[str | None] = mapped_column(String(64))
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True)
+    scim_source: Mapped[str | None] = mapped_column(String(64))
 
 
 class Project(Base, TimestampMixin):
@@ -377,6 +379,40 @@ class FindingAttachment(Base):
     bytes: Mapped[int] = mapped_column(Integer, default=0)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class FindingLabel(Base):
+    __tablename__ = "finding_labels"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("datasets.id"))
+    record_key: Mapped[str | None] = mapped_column(String(255))
+    label: Mapped[str] = mapped_column(String(32), nullable=False)
+    severity: Mapped[str | None] = mapped_column(String(16))
+    detector_names: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    template_codes: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    risk_score: Mapped[float | None] = mapped_column(Float)
+    labelled_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    labelled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class FieldSensitivity(Base):
+    __tablename__ = "field_sensitivities"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    field_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    classification: Mapped[str] = mapped_column(String(32), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    set_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("dataset_id", "field_name", name="uq_field_sensitivity"),)
 
 
 class Monitor(Base, TimestampMixin):
