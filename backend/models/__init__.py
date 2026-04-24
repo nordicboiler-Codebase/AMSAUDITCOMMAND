@@ -7,6 +7,7 @@ from backend.models.enums import (
     UserRole,
 )
 from backend.models.tables import (
+    AppSetting,
     AuditLog,
     Dataset,
     EnsembleRun,
@@ -20,6 +21,7 @@ from backend.models.tables import (
 )
 
 __all__ = [
+    "AppSetting",
     "AuditAction",
     "AuditLog",
     "Dataset",

@@ -192,6 +192,19 @@ class RiskScore(Base):
     )
 
 
+class AppSetting(Base, TimestampMixin):
+    __tablename__ = "app_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    category: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    value_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    is_secret: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+
+    __table_args__ = (UniqueConstraint("category", "key", name="uq_app_settings_category_key"),)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
