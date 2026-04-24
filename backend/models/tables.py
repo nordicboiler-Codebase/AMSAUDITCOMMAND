@@ -7,6 +7,7 @@ from sqlalchemy import (
     ARRAY,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -23,6 +24,8 @@ from backend.core.db import Base
 from backend.models.enums import (
     AuditAction,
     DetectorCategory,
+    FindingSeverity,
+    FindingStatus,
     ProjectRole,
     RunStatus,
     SubledgerType,
@@ -212,6 +215,53 @@ class ProjectMember(Base):
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user"),)
+
+
+class Finding(Base, TimestampMixin):
+    __tablename__ = "findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("datasets.id"))
+    ensemble_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ensemble_runs.id")
+    )
+    record_keys: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    risk_score: Mapped[float | None] = mapped_column(Float)
+    severity: Mapped[FindingSeverity] = mapped_column(
+        Enum(FindingSeverity, name="finding_severity"), default=FindingSeverity.MEDIUM
+    )
+    status: Mapped[FindingStatus] = mapped_column(
+        Enum(FindingStatus, name="finding_status"), default=FindingStatus.DRAFT, index=True
+    )
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    due_date: Mapped[datetime | None] = mapped_column(Date)
+    management_response: Mapped[str | None] = mapped_column(Text)
+    remediation_plan: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    linked_template_codes: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FindingComment(Base):
+    __tablename__ = "finding_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    is_review_signoff: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 class AppSetting(Base, TimestampMixin):

@@ -61,6 +61,10 @@ class AuditAction(str, enum.Enum):
     TEMPLATE_UPDATE = "TEMPLATE_UPDATE"
     TEMPLATE_FORK = "TEMPLATE_FORK"
     TEMPLATE_PUBLISH = "TEMPLATE_PUBLISH"
+    FINDING_CREATE = "FINDING_CREATE"
+    FINDING_UPDATE = "FINDING_UPDATE"
+    FINDING_REVIEW = "FINDING_REVIEW"
+    FINDING_CLOSE = "FINDING_CLOSE"
 
 
 class RunStatus(str, enum.Enum):
@@ -75,3 +79,20 @@ class ProjectRole(str, enum.Enum):
     EDITOR = "EDITOR"
     REVIEWER = "REVIEWER"
     VIEWER = "VIEWER"
+
+
+class FindingStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    CONFIRMED = "CONFIRMED"
+    FALSE_POSITIVE = "FALSE_POSITIVE"
+    REMEDIATED = "REMEDIATED"
+    ACCEPTED_RISK = "ACCEPTED_RISK"
+    CARRIED_FORWARD = "CARRIED_FORWARD"
+
+
+class FindingSeverity(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
