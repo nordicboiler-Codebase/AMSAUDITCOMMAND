@@ -1,0 +1,8 @@
+record_id,asset_id,asset_name,category,acquisition_cost,acquisition_date,depreciation_method,accumulated_depreciation,nbv,status,subsidiary_code,disposal_gain,addition_id,approval_id,transfer_type,change_type,last_physical_count_date
+R0001,A001,Office Printer,Equipment,2500.00,2022-01-15,straight_line,1666.67,833.33,active,SUB1,0,ADD-001,APP-001,internal,none,2025-01-15
+R0002,A002,Delivery Van,Vehicle,85000.00,2020-06-10,straight_line,85000.00,0.00,active,SUB1,0,ADD-002,APP-002,internal,none,2025-01-15
+R0003,A003,Warehouse Forklift,Equipment,45000.00,2021-03-22,declining_balance,22000.00,23000.00,active,SUB2,0,ADD-003,APP-003,subsidiary,depreciation_method,2025-01-15
+R0004,A004,Laptop HP,Equipment,4500.00,2024-11-01,straight_line,500.00,4000.00,active,SUB1,0,ADD-004,,internal,none,2024-12-01
+R0005,A001,Office Printer Duplicate,Equipment,2500.00,2022-01-15,straight_line,1666.67,833.33,active,SUB1,0,ADD-005,APP-005,internal,none,2025-01-15
+R0006,A005,Server Rack,Equipment,125000.00,2023-05-18,straight_line,130000.00,-5000.00,active,SUB1,0,ADD-006,APP-006,internal,none,2025-01-15
+R0007,A006,Old Machinery,Equipment,500000.00,2015-02-01,straight_line,450000.00,50000.00,disposed,SUB1,85000.00,ADD-007,APP-007,internal,none,

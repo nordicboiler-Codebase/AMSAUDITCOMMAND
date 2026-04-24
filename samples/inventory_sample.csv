@@ -1,0 +1,9 @@
+record_id,sku,item_name,category,quantity,unit_cost,unit_price,value,last_movement_date,movement_count,book_qty,physical_qty
+R0001,SKU-001,Widget A,Electronics,150,12.50,25.00,1875.00,2025-03-20,45,150,150
+R0002,SKU-002,Widget B,Electronics,85,18.00,35.00,1530.00,2025-03-18,32,85,80
+R0003,SKU-003,Gadget X,Tools,-5,45.00,90.00,-225.00,2025-03-10,12,-5,-5
+R0004,SKU-004,Premium Item,Luxury,10,500.00,1200.00,5000.00,2024-06-15,1,10,10
+R0005,SKU-005,Obsolete Stock,Electronics,200,0.00,0.00,0.00,2023-01-15,0,200,200
+R0006,SKU-001,Widget A Duplicate,Electronics,50,12.50,25.00,625.00,2025-03-22,15,50,50
+R0007,SKU-006,Rare Item,Electronics,3,5000.00,9500.00,15000.00,2024-12-01,2,3,1
+R0008,SKU-007,High Volume,Consumables,500,2.50,5.00,1250.00,2025-03-25,180,500,498
