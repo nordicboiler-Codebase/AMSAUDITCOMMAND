@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import date
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.core.config import get_settings
 from backend.core.db import get_db
 from backend.core.security import get_current_user
-from backend.models import Finding, FindingComment, FindingSeverity, FindingStatus, User
-from backend.services import findings as svc
+from backend.models import (
+    Finding, FindingAttachment, FindingComment, FindingSeverity, FindingStatus, User,
+)
+from backend.services import acl, findings as svc, settings_store
 
 router = APIRouter()
 
@@ -126,6 +132,74 @@ def add_comment(finding_id: uuid.UUID, body: CommentIn, db: Session = Depends(ge
                 user: User = Depends(get_current_user)) -> dict:
     c = svc.add_comment(db, finding_id=finding_id, body=body.body, user=user)
     return _comment_out(c)
+
+
+@router.post("/{finding_id}/attachments")
+async def upload_attachment(
+    finding_id: uuid.UUID, file: UploadFile = File(...),
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+) -> dict:
+    f = svc.get_finding(db, finding_id=finding_id, user=user)
+    acl.assert_permission(db, project_id=f.project_id, user=user, permission=acl.Permission.EDIT)
+    raw = await file.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    st = get_settings()
+    st.ensure_dirs()
+    target = st.upload_dir / f"attach_{uuid.uuid4()}_{file.filename}.enc"
+    target.write_bytes(settings_store.encrypt_bytes(raw))
+    att = FindingAttachment(
+        finding_id=f.id, filename=file.filename or "unnamed",
+        content_type=file.content_type, storage_path=str(target),
+        sha256=digest, bytes=len(raw), uploaded_by=user.id,
+    )
+    db.add(att)
+    db.commit()
+    return {
+        "id": str(att.id), "filename": att.filename, "sha256": digest, "bytes": len(raw),
+    }
+
+
+@router.get("/{finding_id}/attachments")
+def list_attachments(finding_id: uuid.UUID, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)) -> list[dict]:
+    svc.get_finding(db, finding_id=finding_id, user=user)
+    rows = list(db.execute(
+        select(FindingAttachment).where(FindingAttachment.finding_id == finding_id)
+        .order_by(FindingAttachment.uploaded_at.desc())
+    ).scalars())
+    return [
+        {"id": str(a.id), "filename": a.filename, "content_type": a.content_type,
+         "sha256": a.sha256, "bytes": a.bytes,
+         "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
+         "uploaded_by": str(a.uploaded_by) if a.uploaded_by else None}
+        for a in rows
+    ]
+
+
+@router.get("/{finding_id}/attachments/{attachment_id}")
+def download_attachment(
+    finding_id: uuid.UUID, attachment_id: uuid.UUID,
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+) -> Response:
+    svc.get_finding(db, finding_id=finding_id, user=user)
+    att = db.get(FindingAttachment, attachment_id)
+    if not att or att.finding_id != finding_id:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    path = Path(att.storage_path)
+    if not path.exists():
+        raise HTTPException(status_code=410, detail="File no longer on disk")
+    try:
+        plaintext = settings_store.decrypt_bytes(path.read_bytes())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Decrypt failed: {e}") from e
+    if hashlib.sha256(plaintext).hexdigest() != att.sha256:
+        raise HTTPException(status_code=500, detail="INTEGRITY VIOLATION")
+    return Response(
+        content=plaintext,
+        media_type=att.content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{att.filename}"',
+                 "X-SHA256": att.sha256},
+    )
 
 
 def _out(f: Finding) -> dict:

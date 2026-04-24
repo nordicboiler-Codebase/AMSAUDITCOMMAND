@@ -44,6 +44,7 @@ async def import_dataset(
     name: str = Form(...),
     subledger_type: SubledgerType = Form(...),
     description: str | None = Form(None),
+    classification: str = Form("INTERNAL"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
@@ -68,6 +69,7 @@ async def import_dataset(
             subledger_type=subledger_type,
             user_id=user.id,
             description=description,
+            classification=classification,
         )
     finally:
         try:

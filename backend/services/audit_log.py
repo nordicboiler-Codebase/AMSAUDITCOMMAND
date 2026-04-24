@@ -82,6 +82,24 @@ def log_action(
     )
     db.add(entry)
     db.flush()
+
+    try:
+        from backend.services import siem
+
+        siem.forward_event(db, {
+            "id": str(entry.id),
+            "timestamp": entry.timestamp.isoformat(),
+            "user_id": str(entry.user_id) if entry.user_id else None,
+            "project_id": str(entry.project_id) if entry.project_id else None,
+            "action": entry.action.value if hasattr(entry.action, "value") else str(entry.action),
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "details": entry.details,
+            "current_hash": entry.current_hash,
+        })
+    except Exception:
+        pass
+
     return entry
 
 

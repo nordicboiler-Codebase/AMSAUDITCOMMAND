@@ -98,6 +98,7 @@ def import_dataset(
     subledger_type: SubledgerType,
     user_id: uuid.UUID,
     description: str | None = None,
+    classification: str = "INTERNAL",
 ) -> ImportResult:
     from sqlalchemy import select
 
@@ -130,6 +131,7 @@ def import_dataset(
         parquet_path=str(parquet_path),
         imported_by=user_id,
         description=description,
+        classification=classification,
     )
     db.add(dataset)
     db.flush()

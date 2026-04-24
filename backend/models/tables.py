@@ -100,6 +100,7 @@ class Dataset(Base, TimestampMixin):
     imported_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     description: Mapped[str | None] = mapped_column(Text)
+    classification: Mapped[str] = mapped_column(String(32), default="INTERNAL")
 
 
 class TestTemplate(Base, TimestampMixin):
@@ -341,6 +342,22 @@ class Engagement(Base, TimestampMixin):
     finalised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finalised_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+
+
+class FindingAttachment(Base):
+    __tablename__ = "finding_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(128))
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    bytes: Mapped[int] = mapped_column(Integer, default=0)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 class Monitor(Base, TimestampMixin):

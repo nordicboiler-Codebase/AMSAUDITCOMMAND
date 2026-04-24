@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.db import get_db
 from backend.core.security import get_current_user, require_role
 from backend.models import User
-from backend.services import email as email_svc, retention, sso
+from backend.services import email as email_svc, retention, siem, sso
 
 router = APIRouter()
 
@@ -145,3 +145,28 @@ def purge_retention(
     db: Session = Depends(get_db), user: User = Depends(require_role("ADMIN"))
 ) -> dict:
     return retention.purge(db, user_id=user.id, dry_run=False)
+
+
+class SiemIn(BaseModel):
+    enabled: bool | None = None
+    url: str | None = None
+    auth_header: str | None = None
+    format: str | None = None
+
+
+@router.get("/siem")
+def get_siem(db: Session = Depends(get_db), _u: User = Depends(get_current_user)) -> dict:
+    cfg = siem.get_config(db)
+    # Redact secret
+    if cfg.get("auth_header"):
+        cfg = {**cfg, "auth_header": "***REDACTED***"}
+    return cfg
+
+
+@router.put("/siem")
+def update_siem(
+    body: SiemIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("ADMIN")),
+) -> dict:
+    return siem.save_config(db, new_values=body.model_dump(exclude_none=True), user_id=user.id)
