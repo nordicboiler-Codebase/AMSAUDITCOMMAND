@@ -75,6 +75,11 @@ class Project(Base, TimestampMixin):
     subsidiary_code: Mapped[str | None] = mapped_column(String(50), index=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
+    logo_data_uri: Mapped[str | None] = mapped_column(Text)
+    brand_primary: Mapped[str] = mapped_column(String(16), default="#0b2a4a")
+    brand_accent: Mapped[str] = mapped_column(String(16), default="#15a8a8")
+    legal_footer: Mapped[str | None] = mapped_column(Text)
+    report_language: Mapped[str] = mapped_column(String(8), default="en")
 
 
 class Dataset(Base, TimestampMixin):

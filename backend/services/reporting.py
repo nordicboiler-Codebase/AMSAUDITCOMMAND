@@ -18,6 +18,40 @@ def _html_safe(s: str | None) -> str:
     return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
+def _brand(project: Project | None) -> dict:
+    return {
+        "primary": getattr(project, "brand_primary", None) or "#0b2a4a",
+        "accent": getattr(project, "brand_accent", None) or "#15a8a8",
+        "logo": getattr(project, "logo_data_uri", None),
+        "footer": getattr(project, "legal_footer", None),
+        "language": getattr(project, "report_language", None) or "en",
+    }
+
+
+def _brand_header(brand: dict, title: str) -> str:
+    logo = f'<img src="{brand["logo"]}" style="max-height:60px;"/>' if brand.get("logo") else ""
+    return f"""
+    <div style="border-bottom: 3px solid {brand['primary']}; padding-bottom: 10px; margin-bottom: 20px;">
+      <div style="display:flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h1 style="color: {brand['primary']}; margin: 0;">{title}</h1>
+        </div>
+        <div>{logo}</div>
+      </div>
+    </div>
+    """
+
+
+def _brand_footer(brand: dict) -> str:
+    footer = brand.get("footer") or ""
+    return f"""
+    <div style="margin-top: 30px; border-top: 1px solid {brand['primary']}; padding-top: 8px;
+                font-size: 8pt; color: #666;">
+      {footer}
+    </div>
+    """
+
+
 def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
     from weasyprint import HTML
 
@@ -25,6 +59,8 @@ def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
     if not run:
         raise ValueError("Run not found")
     dataset = db.get(Dataset, run.dataset_id)
+    project = db.get(Project, dataset.project_id) if dataset else None
+    brand = _brand(project)
 
     findings_html = ""
     try:
@@ -56,23 +92,19 @@ def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
     html = f"""
     <html><head><style>
       body {{ font-family: DejaVu Sans, sans-serif; font-size: 10pt; color: #222; }}
-      h1 {{ color: #0b2a4a; }}
-      h2 {{ color: #0b2a4a; border-bottom: 1px solid #ccc; padding-bottom: 2px; }}
-      .cover {{ padding: 40px 0; border-bottom: 3px solid #0b2a4a; }}
-      .metric {{ font-size: 24pt; color: #0b2a4a; }}
+      h1 {{ color: {brand['primary']}; }}
+      h2 {{ color: {brand['primary']}; border-bottom: 1px solid #ccc; padding-bottom: 2px; }}
+      .metric {{ font-size: 24pt; color: {brand['primary']}; }}
       table {{ border-collapse: collapse; width: 100%; margin: 8px 0; }}
       th, td {{ border: 1px solid #ccc; padding: 3px 5px; text-align: left; }}
-      th {{ background: #0b2a4a; color: white; }}
+      th {{ background: {brand['primary']}; color: white; }}
       td.k {{ font-weight: bold; width: 30%; }}
-      .footer {{ margin-top: 30px; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }}
     </style></head><body>
-      <div class="cover">
-        <h1>TechSource Audit Report</h1>
-        <p><strong>Template:</strong> {_html_safe(run.template_code)} — Detector: {_html_safe(run.detector_name)}</p>
-        <p><strong>Dataset:</strong> {_html_safe(dataset.name if dataset else "")}</p>
-        <p><strong>Run ID:</strong> {run.id}</p>
-        <p><strong>Run Date:</strong> {run.started_at.isoformat() if run.started_at else ""}</p>
-      </div>
+      {_brand_header(brand, (project.name + " — Audit Report") if project else "Audit Report")}
+      <p><strong>Template:</strong> {_html_safe(run.template_code)} — Detector: {_html_safe(run.detector_name)}</p>
+      <p><strong>Dataset:</strong> {_html_safe(dataset.name if dataset else "")}</p>
+      <p><strong>Run ID:</strong> {run.id}</p>
+      <p><strong>Run Date:</strong> {run.started_at.isoformat() if run.started_at else ""}</p>
       <h2>Executive Summary</h2>
       <p>The test produced <span class="metric">{run.findings_count}</span> findings.</p>
       <h2>Parameters</h2>
@@ -83,11 +115,13 @@ def generate_template_report(db: Session, test_run_id: uuid.UUID) -> bytes:
       <pre>{_html_safe(json.dumps(run.summary or {}, indent=2)[:3000])}</pre>
       <h2>Findings (top 100)</h2>
       {findings_html or "<p>No findings.</p>"}
-      <div class="footer">
+      <div style="margin-top: 30px; font-size: 8pt; color: #666;
+                  border-top: 1px solid {brand['primary']}; padding-top: 8px;">
         Input hash: {run.input_hash or ""}<br>
         Output hash: {run.output_hash or ""}<br>
         Run by: {run.run_by}
       </div>
+      {_brand_footer(brand)}
     </body></html>
     """
     return HTML(string=html).write_pdf()

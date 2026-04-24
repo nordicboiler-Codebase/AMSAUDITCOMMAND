@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
 from backend.core.security import get_current_user
-from backend.models import Project, ProjectMember, ProjectRole, User
+from backend.models import Project, ProjectRole, User
 from backend.models.enums import UserRole
 from backend.services import acl
 
@@ -25,6 +25,14 @@ class ProjectIn(BaseModel):
 class MemberIn(BaseModel):
     user_id: uuid.UUID
     project_role: ProjectRole
+
+
+class BrandingIn(BaseModel):
+    logo_data_uri: str | None = None
+    brand_primary: str | None = None
+    brand_accent: str | None = None
+    legal_footer: str | None = None
+    report_language: str | None = None
 
 
 @router.get("")
@@ -66,6 +74,20 @@ def get_project(project_id: uuid.UUID, db: Session = Depends(get_db),
     return _project_out(p)
 
 
+@router.put("/{project_id}/branding")
+def update_branding(project_id: uuid.UUID, body: BrandingIn,
+                    db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)) -> dict:
+    acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.ADMIN)
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(p, k, v)
+    db.commit()
+    return _project_out(p)
+
+
 @router.get("/{project_id}/members")
 def list_members(project_id: uuid.UUID, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)) -> list[dict]:
@@ -104,4 +126,9 @@ def _project_out(p: Project) -> dict:
         "subsidiary_code": p.subsidiary_code,
         "status": p.status,
         "owner_id": str(p.owner_id) if p.owner_id else None,
+        "logo_data_uri": getattr(p, "logo_data_uri", None),
+        "brand_primary": getattr(p, "brand_primary", None),
+        "brand_accent": getattr(p, "brand_accent", None),
+        "legal_footer": getattr(p, "legal_footer", None),
+        "report_language": getattr(p, "report_language", None),
     }
