@@ -1,3 +1,54 @@
-"""Template seed data — populated incrementally."""
+"""Template seed data — 143 named audit tests built on 35 base detectors.
 
-TEMPLATES: list[dict] = []
+Each row: (code, name, detector_name, default_params, subledger, category, weight, tags, description)
+"""
+
+UNIVERSAL = [
+    ("U01", "Missing Values in Required Fields", "null_check",
+     {"required_fields": []}, None, "DATA_QUALITY", 0.8, ["quality"],
+     "Flag records with NULL or blank values in required fields"),
+    ("U02", "Invalid Date Formats", "type_validation",
+     {"field": "date", "expected_type": "date"}, None, "DATA_QUALITY", 0.7, ["quality"],
+     "Flag records where a date field fails to parse"),
+    ("U03", "Invalid Numeric Values", "type_validation",
+     {"field": "amount", "expected_type": "numeric"}, None, "DATA_QUALITY", 0.7, ["quality"],
+     "Flag records where a numeric field fails to parse"),
+    ("U04", "Email Format Validation", "format_validation",
+     {"field": "email", "pattern": "email"}, None, "DATA_QUALITY", 0.5, ["quality", "format"],
+     "Flag improperly formatted email addresses"),
+    ("U05", "Phone Format Validation", "format_validation",
+     {"field": "phone", "pattern": "phone"}, None, "DATA_QUALITY", 0.5, ["quality", "format"],
+     "Flag improperly formatted phone numbers"),
+    ("U06", "IBAN Format Validation", "format_validation",
+     {"field": "iban", "pattern": "iban"}, None, "DATA_QUALITY", 0.6, ["quality", "format"],
+     "Flag improperly formatted IBAN values"),
+    ("U07", "Tax ID (UAE TRN) Validation", "format_validation",
+     {"field": "trn", "pattern": "uae_trn"}, None, "DATA_QUALITY", 0.6, ["quality", "format"],
+     "Flag invalid 15-digit UAE Tax Registration Numbers"),
+    ("U08", "Blank Rows Detection", "blank_rows",
+     {}, None, "DATA_QUALITY", 0.5, ["quality"],
+     "Detect entirely blank or header-only rows"),
+    ("U09", "Out-of-Range Values", "range_validation",
+     {"field": "amount", "min": 0, "max": None}, None, "DATA_QUALITY", 0.7, ["quality"],
+     "Flag numeric values outside expected range"),
+    ("U10", "Descriptive Statistics", "statistics",
+     {"numeric_fields": []}, None, "ANALYTICAL", 0.2, ["stats"],
+     "Compute descriptive stats (sum, mean, stddev, min, max, quartiles) per numeric field"),
+    ("U11", "Benford 1st Digit", "benford",
+     {"numeric_field": "amount", "digit_mode": "first"}, None, "FRAUD", 0.5, ["benford", "fraud"],
+     "Benford's Law analysis on first digit"),
+    ("U12", "Benford 1st Two Digits", "benford",
+     {"numeric_field": "amount", "digit_mode": "first_two"}, None, "FRAUD", 0.6, ["benford", "fraud"],
+     "Benford's Law analysis on first two digits (more sensitive)"),
+    ("U13", "Benford Last Two Digits", "benford",
+     {"numeric_field": "amount", "digit_mode": "last_two"}, None, "FRAUD", 0.6, ["benford", "fraud"],
+     "Benford's Law analysis on last two digits (detects rounding/invention)"),
+    ("U14", "Benford 2nd Digit", "benford",
+     {"numeric_field": "amount", "digit_mode": "second"}, None, "FRAUD", 0.5, ["benford", "fraud"],
+     "Benford's Law analysis on second digit"),
+    ("U15", "Referential Integrity Check", "referential_integrity",
+     {"child_field": "ref_id", "parent_values": []}, None, "DATA_QUALITY", 0.9, ["quality", "integrity"],
+     "Flag records where FK value doesn't exist in parent dataset"),
+]
+
+TEMPLATES: list[tuple] = [*UNIVERSAL]
