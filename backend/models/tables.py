@@ -28,6 +28,8 @@ from backend.models.enums import (
     FindingStatus,
     ProjectRole,
     RunStatus,
+    ScheduleKind,
+    ScheduleStatus,
     SubledgerType,
     TemplateCategory,
     TemplateVisibility,
@@ -262,6 +264,51 @@ class FindingComment(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     is_review_signoff: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class Schedule(Base, TimestampMixin):
+    __tablename__ = "schedules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    dataset_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("datasets.id"))
+    kind: Mapped[ScheduleKind] = mapped_column(Enum(ScheduleKind, name="schedule_kind"), nullable=False)
+    pack_code: Mapped[str | None] = mapped_column(String(64))
+    template_code: Mapped[str | None] = mapped_column(String(32))
+    param_overrides: Mapped[dict] = mapped_column(JSONB, default=dict)
+    cron_expr: Mapped[str] = mapped_column(String(64), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    status: Mapped[ScheduleStatus] = mapped_column(
+        Enum(ScheduleStatus, name="schedule_status"), default=ScheduleStatus.ACTIVE, index=True
+    )
+    alert_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    alert_min_score: Mapped[float] = mapped_column(Float, default=80.0)
+    alert_recipients: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    autoensemble: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_status: Mapped[str | None] = mapped_column(String(32))
+    last_run_summary: Mapped[dict | None] = mapped_column(JSONB)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+
+
+class ScheduleRun(Base):
+    __tablename__ = "schedule_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    schedule_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("schedules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), default="RUNNING")
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    alert_error: Mapped[str | None] = mapped_column(Text)
 
 
 class AppSetting(Base, TimestampMixin):

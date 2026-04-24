@@ -65,6 +65,8 @@ class AuditAction(str, enum.Enum):
     FINDING_UPDATE = "FINDING_UPDATE"
     FINDING_REVIEW = "FINDING_REVIEW"
     FINDING_CLOSE = "FINDING_CLOSE"
+    SCHEDULE_RUN = "SCHEDULE_RUN"
+    ALERT_SENT = "ALERT_SENT"
 
 
 class RunStatus(str, enum.Enum):
@@ -96,3 +98,13 @@ class FindingSeverity(str, enum.Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
+
+
+class ScheduleKind(str, enum.Enum):
+    PACK = "PACK"
+    TEMPLATE = "TEMPLATE"
+
+
+class ScheduleStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
