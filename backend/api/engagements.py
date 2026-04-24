@@ -7,10 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from fastapi import Response
+
 from backend.core.db import get_db
 from backend.core.security import get_current_user
 from backend.models import Engagement, EngagementStatus, User
-from backend.services import engagements as svc
+from backend.services import acl, engagements as svc, workpapers
 
 router = APIRouter()
 
@@ -100,6 +102,22 @@ def transition(engagement_id: uuid.UUID, body: TransitionIn, db: Session = Depen
         raise HTTPException(status_code=400, detail=str(e)) from e
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/{engagement_id}/workpaper.zip")
+def workpaper_bundle(engagement_id: uuid.UUID, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)) -> Response:
+    e = db.get(Engagement, engagement_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Not found")
+    acl.assert_permission(db, project_id=e.project_id, user=user, permission=acl.Permission.VIEW)
+    data, filename, media = workpapers.export_engagement_bundle(
+        db, engagement_id=engagement_id, user=user,
+    )
+    return Response(
+        content=data, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{engagement_id}/artifact")
