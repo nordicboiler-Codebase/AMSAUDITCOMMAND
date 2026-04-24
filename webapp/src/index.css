@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 40% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 40% 10%;
+
+    --primary: 213 67% 18%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 14% 96%;
+    --secondary-foreground: 220 40% 10%;
+
+    --muted: 210 14% 93%;
+    --muted-foreground: 215 16% 40%;
+
+    --accent: 175 82% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 146 72% 29%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 32 90% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 215 18% 88%;
+    --input: 215 18% 88%;
+    --ring: 175 82% 42%;
+
+    --sidebar: 214 51% 12%;
+    --sidebar-foreground: 210 14% 93%;
+    --sidebar-muted: 215 16% 60%;
+    --sidebar-hover: 214 30% 20%;
+    --sidebar-active: 175 82% 42%;
+    --sidebar-accent: 175 82% 42%;
+    --sidebar-border: 214 51% 18%;
+
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  code, pre, .font-mono { font-family: "JetBrains Mono", monospace; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+}
+
+@layer components {
+  .metric-value {
+    @apply text-3xl font-semibold tracking-tight tabular-nums;
+  }
+  .metric-label {
+    @apply text-[11px] uppercase tracking-[0.08em] font-semibold text-muted-foreground;
+  }
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-[0.12em] font-semibold text-muted-foreground;
+  }
+}
