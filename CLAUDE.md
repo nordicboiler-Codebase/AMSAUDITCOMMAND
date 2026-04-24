@@ -139,10 +139,61 @@ enterprise controls are now in place:
     requests/min/IP globally, 30 NLQ/min/IP). Password strength check at registration
     (≥10 chars, ≥3 character classes).
 
+**Phase D — Hardening pass (from tester review) complete.** Additional fixes:
+
+21. **Dataset integrity check** — test_runner aborts if parquet row count differs from
+    manifest captured at import time.
+22. **Encrypted source re-download** — `GET /api/datasets/{id}/source` (ADMIN-only)
+    decrypts the original upload on demand and verifies SHA-256 against the import
+    hash before serving.
+23. **Ensemble idempotency** — `compute_ensemble` deletes any prior RiskScore rows for
+    the dataset before writing new ones. No more duplicate top-N.
+24. **Scheduler multi-worker safety** — Postgres advisory lock (`pg_try_advisory_lock`)
+    around the tick loop. Only one worker fires schedules at a time.
+25. **Fernet keychain rotation** — `SECRET_KEY` encrypts, `SECRET_KEY_PREVIOUS`
+    decrypts old ciphertext. `rotate_bytes()` / `rotate_secret()` available for a
+    re-encrypt batch.
+26. **Pagination + latest-ensemble filter** — findings, risk-scores, runs accept
+    `offset` / `limit`; risk-scores accepts `ensemble_run_id` to scope to a run.
+27. **NLQ rate limit wired** — `/api/datasets/{id}/nlq`, `/suggest-templates`,
+    `/test-runs/{id}/narrative` all enforce 30/min/IP.
+28. **Missing routes added** — template `PUT`, project `DELETE`, dataset `DELETE`,
+    user `POST/PATCH/deactivate`, auth `/refresh`.
+29. **Retention respects open findings only** — closed findings (REMEDIATED /
+    ACCEPTED_RISK / FALSE_POSITIVE) no longer block purge.
+30. **5 orphan detectors now have templates** — AN08 sequence_order, AN09 stratify,
+    AN10 histogram, AN11 cross_tabulate, U16 text_anomaly. Total templates now 148.
+31. **Workpaper bundle signature** — SHA-256 + HMAC-SHA256 detached sig file inside
+    the exported zip.
+32. **FastAPI lifespan migration** — replaced deprecated `@app.on_event("startup")`.
+33. **Session expiry warning** — UI banner when < 5 minutes remain on JWT + one-click
+    `/api/auth/refresh`.
+34. **Connector secrets redacted** in audit log details.
+35. **Dataset name uniqueness** enforced per project at import.
+36. **Auto-findings prefixed `AUTO-`** so human vs monitor findings are distinguishable.
+37. **Audit-log JSON returns chain envelope** — `{chain: {ok, broken_at}, entries: [...]}`.
+38. **Email retry** with exponential backoff (1s, 2s, 4s) on transient failures.
+39. **Finding attachments** — encrypted-at-rest, hash-verified on download.
+40. **Dataset classification tag** — PDPL / NESA-style labelling (PUBLIC / INTERNAL /
+    CONFIDENTIAL / RESTRICTED).
+41. **SIEM webhook feed** — every audit_log entry fire-and-forwards to a configured
+    collector URL (fire-and-forget, 3s timeout, never blocks).
+
+## Deployment notes
+
+- **CSRF**: the API uses bearer tokens in the `Authorization` header with permissive CORS.
+  If you put Streamlit (or any browser client) behind a reverse proxy that sets a
+  session cookie, add CSRF middleware — bearer-only endpoints are safe, cookie-backed
+  ones would need protection.
+- **Multi-worker**: scheduler now uses a Postgres advisory lock; safe to run
+  `uvicorn --workers N`. Rate limiter is still in-process — for multi-host use Redis.
+- **Key rotation**: set new `SECRET_KEY`, keep the old as `SECRET_KEY_PREVIOUS`
+  (comma-separated if multiple), restart; ciphertext decrypts transparently.
+  Schedule `rotate_secret()` to re-encrypt historical ciphertext.
+
 Phase D candidates (not yet done): AG Grid in Risk Explorer, mobile/tablet responsive,
 Redis rate limiter for multi-worker, supervised ML with labelled finding feedback,
-SCIM user provisioning, rotation of Fernet key + re-encryption batch, fine-grained
-per-field data-access policies.
+SCIM user provisioning, fine-grained per-field data-access policies.
 
 ## Commands
 

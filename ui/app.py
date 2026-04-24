@@ -270,7 +270,7 @@ def sidebar() -> str:
 
 
 def dashboard_view() -> None:
-    st.header("Dashboard")
+    st.header(t("nav.dashboard"))
     m = api_get("/api/metrics/dashboard").json()
 
     c1, c2, c3, c4 = st.columns(4)
@@ -332,7 +332,7 @@ def dashboard_view() -> None:
 
 
 def projects_view() -> None:
-    st.header("Projects")
+    st.header(t("nav.projects"))
     with st.expander("Create project"):
         with st.form("new_project"):
             name = st.text_input("Name")
@@ -360,7 +360,7 @@ SAMPLE_FILES = {
 
 
 def datasets_view() -> None:
-    st.header("Datasets")
+    st.header(t("datasets.title"))
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
@@ -620,7 +620,7 @@ def run_view() -> None:
 
 
 def risk_view() -> None:
-    st.header("Risk Explorer")
+    st.header(t("risk.title"))
     dsid = st.session_state.get("dataset_id")
     if not dsid:
         st.warning("Set active dataset ID in the sidebar.")
@@ -748,7 +748,7 @@ def library_view() -> None:
 
 
 def findings_view() -> None:
-    st.header("Findings Register")
+    st.header(t("findings.title"))
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
@@ -899,7 +899,7 @@ def connectors_view() -> None:
 
 
 def engagements_view() -> None:
-    st.header("Engagements")
+    st.header(t("engagements.title"))
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
@@ -1031,7 +1031,7 @@ def engagements_view() -> None:
 
 
 def schedules_view() -> None:
-    st.header("Scheduled Runs & Alerts")
+    st.header(t("schedules.title"))
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
@@ -1460,11 +1460,16 @@ def settings_view() -> None:
                     st.error(r.text)
 
         st.divider()
-        cols = st.columns(2)
-        if cols[0].button("🔍 Scan (dry-run)"):
+        if st.button("🔍 Scan (dry-run)"):
             scan = api_post("/api/settings/retention/scan").json()
             st.json(scan)
-        if cols[1].button("⚠️ Purge now (irreversible)"):
+
+        st.markdown("**Permanent purge**")
+        confirm = st.checkbox(
+            "I understand this irreversibly deletes stale datasets, test runs, "
+            "risk scores and Parquet files.", key="purge_confirm",
+        )
+        if st.button("⚠️ Purge now", disabled=not confirm):
             purged = api_post("/api/settings/retention/purge").json()
             st.warning(f"Purge complete: {purged.get('purged_datasets', 0)} datasets removed")
             st.json(purged)
