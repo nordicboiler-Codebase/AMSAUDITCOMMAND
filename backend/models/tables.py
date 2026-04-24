@@ -24,6 +24,7 @@ from backend.core.db import Base
 from backend.models.enums import (
     AuditAction,
     DetectorCategory,
+    EngagementStatus,
     FindingSeverity,
     FindingStatus,
     ProjectRole,
@@ -309,6 +310,32 @@ class ScheduleRun(Base):
     summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     alert_error: Mapped[str | None] = mapped_column(Text)
+
+
+class Engagement(Base, TimestampMixin):
+    __tablename__ = "engagements"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    period_start: Mapped[datetime | None] = mapped_column(Date)
+    period_end: Mapped[datetime | None] = mapped_column(Date)
+    scope: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[EngagementStatus] = mapped_column(
+        Enum(EngagementStatus, name="engagement_status"), default=EngagementStatus.PLANNING, index=True
+    )
+    lead_auditor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    dataset_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list)
+    pack_run_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list)
+    finding_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list)
+    executive_summary: Mapped[str | None] = mapped_column(Text)
+    finalised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalised_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
 
 
 class AppSetting(Base, TimestampMixin):

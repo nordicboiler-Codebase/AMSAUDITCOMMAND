@@ -67,6 +67,7 @@ class AuditAction(str, enum.Enum):
     FINDING_CLOSE = "FINDING_CLOSE"
     SCHEDULE_RUN = "SCHEDULE_RUN"
     ALERT_SENT = "ALERT_SENT"
+    ENGAGEMENT_FINALISE = "ENGAGEMENT_FINALISE"
 
 
 class RunStatus(str, enum.Enum):
@@ -108,3 +109,11 @@ class ScheduleKind(str, enum.Enum):
 class ScheduleStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
+
+
+class EngagementStatus(str, enum.Enum):
+    PLANNING = "PLANNING"
+    IN_PROGRESS = "IN_PROGRESS"
+    REVIEW = "REVIEW"
+    FINALISED = "FINALISED"
+    ARCHIVED = "ARCHIVED"
