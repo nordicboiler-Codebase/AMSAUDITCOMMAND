@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import get_settings
 from backend.core.logging import configure_logging
+from backend.core.rate_limit import global_rate_limit
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
         title="TechSource Audit Analytics",
         version="0.1.0",
         description="Detector + Template audit analytics platform",
+        dependencies=[Depends(global_rate_limit)],
     )
 
     app.add_middleware(

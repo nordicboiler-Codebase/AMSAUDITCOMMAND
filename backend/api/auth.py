@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -8,12 +10,29 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
+from backend.core.rate_limit import login_rate_limit
 from backend.core.security import create_token, get_current_user, hash_password, verify_password
 from backend.models import AuditAction, User
 from backend.models.enums import UserRole
 from backend.services import audit_log, mfa, sso
 
 router = APIRouter()
+
+
+def _check_password_strength(pwd: str) -> None:
+    if len(pwd) < 10:
+        raise HTTPException(status_code=400, detail="Password must be ≥ 10 characters")
+    classes = sum([
+        bool(re.search(r"[a-z]", pwd)),
+        bool(re.search(r"[A-Z]", pwd)),
+        bool(re.search(r"\d", pwd)),
+        bool(re.search(r"[^A-Za-z0-9]", pwd)),
+    ])
+    if classes < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least 3 of: lowercase, uppercase, digit, symbol",
+        )
 
 
 class TokenOut(BaseModel):
@@ -29,9 +48,11 @@ class RegisterIn(BaseModel):
 
 
 @router.post("/register", response_model=dict)
-def register(body: RegisterIn, db: Session = Depends(get_db)) -> dict:
+def register(body: RegisterIn, db: Session = Depends(get_db),
+             _rl: None = Depends(login_rate_limit)) -> dict:
     if db.execute(select(User).where(User.username == body.username)).scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username exists")
+    _check_password_strength(body.password)
     user = User(
         username=body.username,
         email=body.email,
@@ -44,7 +65,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/token")
-def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> dict:
+def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db),
+          _rl: None = Depends(login_rate_limit)) -> dict:
     user = db.execute(select(User).where(User.username == form.username)).scalar_one_or_none()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")

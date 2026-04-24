@@ -120,8 +120,29 @@ enterprise controls are now in place:
     `/api/bi/test_runs.csv` consumable by Power BI Web connector, Tableau WDC, Excel.
     Manifest at `/api/bi/manifest.json`.
 
-Next phase slices (not yet done): Arabic i18n, ISO 27001 SOC2-style hardening,
-MindBridge-style continuous risk scoring, workpaper linkage, mobile companion.
+**Phase C — Enterprise polish complete.** Additional deliverables:
+
+16. **Bilingual UI** — English + Arabic JSON catalogs, language picker in login and
+    sidebar, automatic RTL CSS when Arabic selected. Translation helper `t("key")`.
+17. **Workpaper export** — `/api/engagements/{id}/workpaper.zip` produces an evidence
+    bundle (manifest.json with hashes, findings.csv, test_runs.csv, audit_chain.json,
+    per-run sample flagged rows, README with CaseWare / IDEA / TeamMate import
+    instructions).
+18. **Per-project branding** — projects table gains logo_data_uri, brand_primary,
+    brand_accent, legal_footer, report_language. Template PDF reports honour these.
+    `PUT /api/projects/{id}/branding` (ADMIN).
+19. **Continuous monitoring** — `monitors` table. An enabled monitor matching a newly
+    imported dataset's subledger auto-runs its pack + ensemble and auto-creates DRAFT
+    findings for records above a configurable threshold. Alerts routed via the email
+    service from Phase A.
+20. **Hardening** — in-process token-bucket rate limiter (10 logins/min/IP, 600
+    requests/min/IP globally, 30 NLQ/min/IP). Password strength check at registration
+    (≥10 chars, ≥3 character classes).
+
+Phase D candidates (not yet done): AG Grid in Risk Explorer, mobile/tablet responsive,
+Redis rate limiter for multi-worker, supervised ML with labelled finding feedback,
+SCIM user provisioning, rotation of Fernet key + re-encryption batch, fine-grained
+per-field data-access policies.
 
 ## Commands
 
