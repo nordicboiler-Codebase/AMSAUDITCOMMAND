@@ -5,6 +5,7 @@ from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
@@ -15,6 +16,16 @@ from backend.services import import_service
 
 router = APIRouter()
 settings = get_settings()
+
+
+@router.get("")
+def list_datasets(project_id: uuid.UUID | None = None, db: Session = Depends(get_db),
+                  _u: User = Depends(get_current_user)) -> list[dict]:
+    q = select(Dataset)
+    if project_id is not None:
+        q = q.where(Dataset.project_id == project_id)
+    q = q.order_by(Dataset.imported_at.desc())
+    return [_ds_out(d) for d in db.execute(q).scalars()]
 
 
 @router.post("/import")

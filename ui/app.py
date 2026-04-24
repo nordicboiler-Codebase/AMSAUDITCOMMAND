@@ -156,6 +156,25 @@ def datasets_view() -> None:
                     st.success(f"Imported. Dataset ID: {r.json()['dataset_id']}")
                 else:
                     st.error(r.text)
+    st.subheader("Datasets in this project")
+    listing = api_get("/api/datasets", params={"project_id": st.session_state["project_id"]})
+    if listing.status_code == 200:
+        rows = listing.json()
+        if rows:
+            df = pd.DataFrame([
+                {"id": r["id"], "name": r["name"], "subledger": r["subledger_type"],
+                 "records": r["record_count"], "file": r["source_filename"]}
+                for r in rows
+            ])
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            picker = {f"{r['name']} ({r['record_count']} rows)": r["id"] for r in rows}
+            chosen = st.selectbox("Set as active dataset", ["(none)"] + list(picker.keys()))
+            if chosen != "(none)":
+                st.session_state["dataset_id"] = picker[chosen]
+                st.success(f"Active dataset set to {picker[chosen]}")
+        else:
+            st.info("No datasets imported yet for this project.")
+
     if st.session_state.get("dataset_id"):
         info = api_get(f"/api/datasets/{st.session_state['dataset_id']}")
         if info.status_code == 200:
