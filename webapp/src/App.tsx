@@ -2,14 +2,23 @@ import { Loader2 } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./lib/auth";
+import { AdminPage } from "./pages/AdminPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DatasetsPage } from "./pages/DatasetsPage";
+import { EngagementsPage } from "./pages/EngagementsPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { MLFeedbackPage } from "./pages/MLFeedbackPage";
+import { PacksPage } from "./pages/PacksPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RiskExplorerPage } from "./pages/RiskExplorerPage";
+import { RunPage } from "./pages/RunPage";
+import { SchedulesPage } from "./pages/SchedulesPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { SubsidiariesPage } from "./pages/SubsidiariesPage";
+import { TemplatesPage } from "./pages/TemplatesPage";
+import { TestRunsPage } from "./pages/TestRunsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,30 +37,23 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <Layout />
-          </RequireAuth>
-        }
-      >
+      <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<DashboardPage />} />
+        <Route path="engagements" element={<EngagementsPage />} />
         <Route path="findings" element={<FindingsPage />} />
+        <Route path="schedules" element={<SchedulesPage />} />
+        <Route path="datasets" element={<DatasetsPage />} />
+        <Route path="run" element={<RunPage />} />
         <Route path="risk" element={<RiskExplorerPage />} />
+        <Route path="runs" element={<TestRunsPage />} />
+        <Route path="templates" element={<TemplatesPage />} />
+        <Route path="packs" element={<PacksPage />} />
         <Route path="subsidiaries" element={<SubsidiariesPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
-        <Route path="engagements" element={<PlaceholderPage title="Engagements" description="Workpaper bundles + maker-checker finalise." />} />
-        <Route path="schedules" element={<PlaceholderPage title="Schedules" description="Cron-driven pack runs + alerts." />} />
-        <Route path="datasets" element={<PlaceholderPage title="Datasets" description="Encrypted uploads, hashed, classifiable." />} />
-        <Route path="run" element={<PlaceholderPage title="Run tests" description="Execute templates, packs, or custom detectors." />} />
-        <Route path="runs" element={<PlaceholderPage title="Test runs" description="Every run logged with input/output hashes." />} />
-        <Route path="templates" element={<PlaceholderPage title="Templates" description="148 named audit tests across 11 subledger domains." />} />
-        <Route path="packs" element={<PlaceholderPage title="Packs" description="10 domain packs covering AP, AR, GL, Payroll, etc." />} />
-        <Route path="ml-feedback" element={<PlaceholderPage title="ML Feedback" description="Precision per detector from labelled findings." />} />
-        <Route path="admin" element={<PlaceholderPage title="Users" description="Directory of platform users + SCIM provisioning." />} />
-        <Route path="settings" element={<PlaceholderPage title="Settings" description="SSO, MFA, Email, Retention, SIEM, Branding." />} />
+        <Route path="ml-feedback" element={<MLFeedbackPage />} />
+        <Route path="admin" element={<AdminPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );
