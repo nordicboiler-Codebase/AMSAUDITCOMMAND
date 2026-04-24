@@ -82,3 +82,11 @@ def redact_secrets(payload: dict[str, Any], secret_fields: set[str]) -> dict[str
         if out.get(f):
             out[f] = SECRET_SENTINEL
     return out
+
+
+def encrypt_bytes(data: bytes) -> bytes:
+    return _fernet().encrypt(data)
+
+
+def decrypt_bytes(token: bytes) -> bytes:
+    return _fernet().decrypt(token)

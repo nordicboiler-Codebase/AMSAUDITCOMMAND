@@ -12,7 +12,7 @@ from backend.core.config import get_settings
 from backend.core.db import get_db
 from backend.core.security import get_current_user
 from backend.models import Dataset, SubledgerType, User
-from backend.services import acl, import_service
+from backend.services import acl, import_service, settings_store
 
 router = APIRouter()
 settings = get_settings()
@@ -46,25 +46,38 @@ async def import_dataset(
 ) -> dict:
     acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.EDIT)
     settings.ensure_dirs()
-    dest = settings.upload_dir / f"{uuid.uuid4()}_{file.filename}"
+    raw = await file.read()
+    # Store the raw upload encrypted-at-rest with Fernet (SECRET_KEY-derived).
+    encrypted = settings.upload_dir / f"{uuid.uuid4()}_{file.filename}.enc"
+    with open(encrypted, "wb") as f:
+        f.write(settings_store.encrypt_bytes(raw))
+    # Stage a decrypted temp copy for Polars import, then delete.
+    dest = settings.upload_dir / f"tmp_{uuid.uuid4()}_{file.filename}"
     with open(dest, "wb") as f:
-        f.write(await file.read())
-    result = import_service.import_dataset(
-        db,
-        file_path=dest,
-        source_filename=file.filename,
-        project_id=project_id,
-        name=name,
-        subledger_type=subledger_type,
-        user_id=user.id,
-        description=description,
-    )
+        f.write(raw)
+    try:
+        result = import_service.import_dataset(
+            db,
+            file_path=dest,
+            source_filename=file.filename,
+            project_id=project_id,
+            name=name,
+            subledger_type=subledger_type,
+            user_id=user.id,
+            description=description,
+        )
+    finally:
+        try:
+            dest.unlink()
+        except OSError:
+            pass
     return {
         "dataset_id": str(result.dataset_id),
         "record_count": result.record_count,
         "source_hash": result.source_hash,
         "control_totals": result.control_totals,
         "schema": result.schema,
+        "encrypted_source_path": str(encrypted),
     }
 
 
