@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pandas as pd
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).parent))
+from i18n import SUPPORTED, apply_rtl_if_needed, t  # noqa: E402
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
@@ -81,7 +85,23 @@ def _fetch_me_with_token(token: str) -> dict | None:
     return me.json() if me.status_code == 200 else None
 
 
+def _lang_picker(label_source: str = "login") -> None:
+    """Render a compact language picker. label_source is just a unique widget key."""
+    current = st.session_state.get("lang", "en")
+    choice = st.selectbox(
+        t("common.language"),
+        options=list(SUPPORTED.keys()),
+        format_func=lambda k: SUPPORTED[k],
+        index=list(SUPPORTED.keys()).index(current),
+        key=f"lang_picker_{label_source}",
+    )
+    if choice != current:
+        st.session_state["lang"] = choice
+        st.rerun()
+
+
 def login_view() -> None:
+    apply_rtl_if_needed()
     # Handle SSO redirect: /?sso_token=<jwt>
     params = st.query_params
     if params.get("sso_token"):
@@ -96,8 +116,11 @@ def login_view() -> None:
             st.error("SSO succeeded but profile fetch failed.")
             st.query_params.clear()
 
-    st.title("TechSource Audit Analytics")
-    st.caption("Internal audit data analytics platform")
+    col_l, col_r = st.columns([3, 1])
+    with col_r:
+        _lang_picker("login")
+    st.title(t("app.title"))
+    st.caption(t("app.subtitle"))
 
     try:
         sso_status = httpx.get(f"{API_BASE}/api/settings/sso/status", timeout=5.0).json()
@@ -119,9 +142,9 @@ def login_view() -> None:
         )
 
     with st.form("login"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Sign in with password")
+        username = st.text_input(t("auth.username"))
+        password = st.text_input(t("auth.password"), type="password")
+        submit = st.form_submit_button(t("auth.sign_in"))
     if submit:
         r = httpx.post(
             f"{API_BASE}/api/auth/token",
@@ -169,30 +192,53 @@ def login_view() -> None:
             st.rerun()
 
 
+NAV_KEYS = {
+    "Dashboard": "nav.dashboard",
+    "Projects": "nav.projects",
+    "Engagements": "nav.engagements",
+    "Datasets": "nav.datasets",
+    "Connectors": "nav.connectors",
+    "Templates": "nav.templates",
+    "Packs": "nav.packs",
+    "Run": "nav.run",
+    "Risk Explorer": "nav.risk_explorer",
+    "Findings": "nav.findings",
+    "Schedules": "nav.schedules",
+    "Test Runs": "nav.test_runs",
+    "Audit Log": "nav.audit_log",
+    "Template Editor": "nav.template_editor",
+    "Library": "nav.library",
+    "Admin": "nav.admin",
+    "Settings": "nav.settings",
+}
+
+
 def sidebar() -> str:
+    apply_rtl_if_needed()
     with st.sidebar:
+        _lang_picker("sidebar")
         st.markdown(f"### {st.session_state['user']['username']}")
         st.caption(st.session_state["user"]["role"])
         projects = api_get("/api/projects").json() if st.session_state.get("token") else []
         project_names = {p["name"]: p["id"] for p in projects}
-        sel_project = st.selectbox("Active project", ["(none)"] + list(project_names.keys()))
+        sel_project = st.selectbox(t("common.active_project"), ["(none)"] + list(project_names.keys()))
         st.session_state["project_id"] = project_names.get(sel_project)
         datasets = []
         if st.session_state.get("project_id"):
             r = api_get("/api/projects")
             if r.status_code == 200:
                 pass
-        sel_dataset = st.text_input("Active dataset ID (UUID)", st.session_state.get("dataset_id", ""))
+        sel_dataset = st.text_input(t("common.active_dataset"), st.session_state.get("dataset_id", ""))
         st.session_state["dataset_id"] = sel_dataset or None
         st.divider()
+        nav_choices = list(NAV_KEYS.keys())
         page = st.radio(
-            "Navigate",
-            ["Dashboard", "Projects", "Engagements", "Datasets", "Connectors", "Templates",
-             "Packs", "Run", "Risk Explorer", "Findings", "Schedules", "Test Runs",
-             "Audit Log", "Template Editor", "Library", "Admin", "Settings"],
+            t("common.navigate"),
+            nav_choices,
+            format_func=lambda p: t(NAV_KEYS[p]),
         )
         st.divider()
-        if st.button("Sign out"):
+        if st.button(t("auth.sign_out")):
             st.session_state.clear()
             st.rerun()
     return page
