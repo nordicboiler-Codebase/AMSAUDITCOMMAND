@@ -26,11 +26,10 @@ echo "    $PCOUNT packs"
 [ "$PCOUNT" = "10" ] || { echo "FAIL: expected 10"; exit 1; }
 
 echo "==> [5] Resolve Pilot dataset"
-DSID=$(curl -sf -H "$AUTH" "$API/api/projects" \
-  | python3 -c "import sys,json;p=next(p for p in json.load(sys.stdin) if p['name']=='Pilot');print(p['id'])")
-DSID=$(PGPASSWORD=audit psql -h 127.0.0.1 -U audit -d audit -tA -c \
-  "SELECT id FROM datasets WHERE name='AP Sample (seeded)' ORDER BY imported_at DESC LIMIT 1")
-[ -n "$DSID" ] || { echo "FAIL: seeded dataset not found; run scripts/sample_data.py"; exit 1; }
+DSID=$(docker compose exec -T db psql -U audit -d audit -tA -c \
+  "SELECT id FROM datasets WHERE name='AP Sample (seeded)' ORDER BY imported_at DESC LIMIT 1" \
+  | tr -d '[:space:]')
+[ -n "$DSID" ] || { echo "FAIL: seeded dataset not found; run: python3 scripts/sample_data.py"; exit 1; }
 echo "    dataset $DSID"
 
 echo "==> [6] Run AP_STANDARD pack"
