@@ -94,7 +94,8 @@ def sidebar() -> str:
         page = st.radio(
             "Navigate",
             ["Dashboard", "Projects", "Datasets", "Templates", "Packs", "Run",
-             "Risk Explorer", "Test Runs", "Audit Log", "Template Editor", "Library", "Admin"],
+             "Risk Explorer", "Test Runs", "Audit Log", "Template Editor", "Library",
+             "Admin", "Settings"],
         )
         st.divider()
         if st.button("Sign out"):
@@ -437,6 +438,215 @@ def admin_view() -> None:
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+def settings_view() -> None:
+    st.header("⚙️ Settings")
+    if st.session_state.get("user", {}).get("role") != "ADMIN":
+        st.error("Admin role required")
+        return
+
+    tab_sso, tab_email = st.tabs(["🔐 Single Sign-On", "✉️ Email"])
+
+    with tab_sso:
+        st.subheader("Single Sign-On (OAuth2 / OIDC)")
+        cfg_resp = api_get("/api/settings/sso")
+        if cfg_resp.status_code != 200:
+            st.error(cfg_resp.text)
+            return
+        cfg = cfg_resp.json()
+        st.caption(
+            "Configure Azure AD (Entra ID), Google, Okta, or any OIDC-compliant provider. "
+            "Register this app in your identity provider first, then paste the IDs below."
+        )
+        with st.form("sso_form"):
+            enabled = st.toggle("Enabled", value=cfg.get("enabled", False))
+            c1, c2 = st.columns(2)
+            with c1:
+                provider = st.selectbox(
+                    "Provider",
+                    ["azure_ad", "google", "okta", "generic_oidc"],
+                    index=["azure_ad", "google", "okta", "generic_oidc"].index(
+                        cfg.get("provider", "azure_ad")
+                    ) if cfg.get("provider") in ["azure_ad", "google", "okta", "generic_oidc"] else 0,
+                )
+                tenant_id = st.text_input("Tenant ID (Directory ID)", value=cfg.get("tenant_id", ""))
+                client_id = st.text_input("Client ID (Application ID)", value=cfg.get("client_id", ""))
+                client_secret = st.text_input(
+                    "Client Secret",
+                    value="",
+                    type="password",
+                    placeholder="Leave blank to keep existing",
+                )
+            with c2:
+                redirect_uri = st.text_input(
+                    "Redirect URI",
+                    value=cfg.get("redirect_uri", ""),
+                    help="Usually https://<your-host>/api/auth/sso/callback",
+                )
+                scopes = st.text_input(
+                    "Scopes (space-separated)",
+                    value=" ".join(cfg.get("scopes", ["openid", "email", "profile"])),
+                )
+                allowed_domains = st.text_input(
+                    "Allowed email domains (comma-separated)",
+                    value=",".join(cfg.get("allowed_domains", [])),
+                    help="Leave blank to allow any domain",
+                )
+                auto_provision = st.toggle(
+                    "Auto-provision new users on first login",
+                    value=cfg.get("auto_provision", True),
+                )
+                default_role = st.selectbox(
+                    "Default role for new SSO users",
+                    ["ADMIN", "AUDITOR", "VIEWER"],
+                    index=["ADMIN", "AUDITOR", "VIEWER"].index(cfg.get("default_role", "AUDITOR")),
+                )
+            submitted = st.form_submit_button("💾 Save SSO configuration")
+            if submitted:
+                payload = {
+                    "enabled": enabled,
+                    "provider": provider,
+                    "tenant_id": tenant_id,
+                    "client_id": client_id,
+                    "redirect_uri": redirect_uri,
+                    "scopes": scopes.split(),
+                    "allowed_domains": [d.strip() for d in allowed_domains.split(",") if d.strip()],
+                    "auto_provision": auto_provision,
+                    "default_role": default_role,
+                }
+                if client_secret:
+                    payload["client_secret"] = client_secret
+                r = httpx.put(f"{API_BASE}/api/settings/sso", json=payload,
+                              headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                              timeout=15.0)
+                if r.status_code == 200:
+                    st.success("SSO configuration saved")
+                else:
+                    st.error(r.text)
+
+    with tab_email:
+        st.subheader("Outbound Email (SMTP or Microsoft Graph)")
+        cfg_resp = api_get("/api/settings/email")
+        if cfg_resp.status_code != 200:
+            st.error(cfg_resp.text)
+            return
+        cfg = cfg_resp.json()
+        st.caption(
+            "Configure outbound email for notifications and audit reports. "
+            "Use **Microsoft Graph** for modern Entra-authenticated sending, or **SMTP** "
+            "with optional XOAUTH2 modern auth."
+        )
+        with st.form("email_form"):
+            enabled = st.toggle("Enabled", value=cfg.get("enabled", False), key="em_en")
+            c1, c2 = st.columns(2)
+            with c1:
+                provider = st.radio("Provider", ["smtp", "graph"],
+                                    index=0 if cfg.get("provider", "smtp") == "smtp" else 1,
+                                    horizontal=True)
+                from_address = st.text_input("From address", value=cfg.get("from_address", ""))
+                from_name = st.text_input("From name",
+                                          value=cfg.get("from_name", "TechSource Audit Analytics"))
+            with c2:
+                st.markdown("&nbsp;")
+
+            st.divider()
+            if provider == "smtp":
+                st.markdown("**SMTP settings**")
+                s1, s2 = st.columns(2)
+                with s1:
+                    smtp_host = st.text_input("SMTP host", value=cfg.get("smtp_host", ""))
+                    smtp_port = st.number_input("SMTP port", value=int(cfg.get("smtp_port", 587)))
+                    smtp_user = st.text_input("SMTP user", value=cfg.get("smtp_user", ""))
+                    smtp_password = st.text_input(
+                        "SMTP password",
+                        value="",
+                        type="password",
+                        placeholder="Leave blank to keep existing",
+                    )
+                with s2:
+                    smtp_use_tls = st.toggle("STARTTLS", value=cfg.get("smtp_use_tls", True))
+                    smtp_use_ssl = st.toggle("SSL", value=cfg.get("smtp_use_ssl", False))
+                    use_oauth2 = st.toggle(
+                        "Use OAuth2 (XOAUTH2, modern auth)",
+                        value=cfg.get("use_oauth2", False),
+                        help="Required by Microsoft 365 after basic auth retirement",
+                    )
+                    oauth_tenant_id = st.text_input("OAuth tenant ID",
+                                                    value=cfg.get("oauth_tenant_id", ""))
+                    oauth_client_id = st.text_input("OAuth client ID",
+                                                    value=cfg.get("oauth_client_id", ""))
+                    oauth_client_secret = st.text_input(
+                        "OAuth client secret", value="", type="password",
+                        placeholder="Leave blank to keep existing",
+                    )
+                submit_label = "💾 Save SMTP configuration"
+            else:
+                st.markdown("**Microsoft Graph (Entra ID) settings**")
+                g1, g2 = st.columns(2)
+                with g1:
+                    graph_tenant_id = st.text_input("Tenant ID",
+                                                    value=cfg.get("graph_tenant_id", ""))
+                    graph_client_id = st.text_input("Client ID",
+                                                    value=cfg.get("graph_client_id", ""))
+                with g2:
+                    graph_client_secret = st.text_input(
+                        "Client secret", value="", type="password",
+                        placeholder="Leave blank to keep existing",
+                    )
+                    graph_sender_upn = st.text_input(
+                        "Sender mailbox (UPN)",
+                        value=cfg.get("graph_sender_upn", ""),
+                        help="The mailbox to send from, e.g. audit-bot@yourcompany.com",
+                    )
+                submit_label = "💾 Save Graph configuration"
+
+            submitted = st.form_submit_button(submit_label)
+            if submitted:
+                payload = {
+                    "enabled": enabled, "provider": provider,
+                    "from_address": from_address, "from_name": from_name,
+                }
+                if provider == "smtp":
+                    payload.update({
+                        "smtp_host": smtp_host, "smtp_port": int(smtp_port),
+                        "smtp_user": smtp_user,
+                        "smtp_use_tls": smtp_use_tls, "smtp_use_ssl": smtp_use_ssl,
+                        "use_oauth2": use_oauth2,
+                        "oauth_tenant_id": oauth_tenant_id,
+                        "oauth_client_id": oauth_client_id,
+                        "oauth_scope": "https://outlook.office365.com/.default",
+                    })
+                    if smtp_password:
+                        payload["smtp_password"] = smtp_password
+                    if oauth_client_secret:
+                        payload["oauth_client_secret"] = oauth_client_secret
+                else:
+                    payload.update({
+                        "graph_tenant_id": graph_tenant_id,
+                        "graph_client_id": graph_client_id,
+                        "graph_sender_upn": graph_sender_upn,
+                    })
+                    if graph_client_secret:
+                        payload["graph_client_secret"] = graph_client_secret
+                r = httpx.put(f"{API_BASE}/api/settings/email", json=payload,
+                              headers={"Authorization": f"Bearer {st.session_state['token']}"},
+                              timeout=15.0)
+                if r.status_code == 200:
+                    st.success("Email configuration saved")
+                else:
+                    st.error(r.text)
+
+        st.divider()
+        st.markdown("**Send test email**")
+        c1, c2 = st.columns([3, 1])
+        test_to = c1.text_input("Send test email to", key="test_to")
+        if c2.button("Send test") and test_to:
+            r = api_post("/api/settings/email/test", json={"to": test_to})
+            if r.status_code == 200:
+                st.success(f"Test email sent to {test_to}")
+            else:
+                st.error(r.text)
+
+
 def main() -> None:
     if not st.session_state.get("token"):
         login_view()
@@ -455,6 +665,7 @@ def main() -> None:
         "Template Editor": template_editor_view,
         "Library": library_view,
         "Admin": admin_view,
+        "Settings": settings_view,
     }
     views[page]()
 
