@@ -1,0 +1,8 @@
+record_id,customer_id,customer_name,invoice_no,invoice_amount,invoice_date,due_date,payment_date,balance,credit_limit,writeoff_amount,type,ref_invoice_no,shipment_id
+R0001,C01,Gulf Retail LLC,AR-3001,5000.00,2025-01-05,2025-02-04,2025-02-03,5000.00,50000.00,0,sale,,SHIP-1001
+R0002,C02,Emirates Trading,AR-3002,12500.00,2025-01-10,2025-02-09,,12500.00,20000.00,0,sale,,SHIP-1002
+R0003,C03,Desert Supplies,AR-3003,3000.00,2025-03-15,2025-04-14,2025-02-10,3000.00,10000.00,0,sale,,SHIP-1003
+R0004,C02,Emirates Trading,AR-3004,25000.00,2025-03-20,2025-04-19,,25000.00,20000.00,0,sale,,SHIP-1004
+R0005,C04,Quick Mart,CR-9001,-1500.00,2025-03-25,2025-03-25,,-1500.00,5000.00,0,refund,AR-9999,
+R0006,C05,Sunrise Gifts,AR-3005,750.00,2024-12-01,2024-12-31,,750.00,3000.00,0,sale,,SHIP-1005
+R0007,C01,Gulf Retail LLC,WO-0001,0,2025-03-28,2025-03-28,,0,50000.00,15000.00,writeoff,AR-3001,
