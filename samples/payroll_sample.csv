@@ -1,0 +1,7 @@
+record_id,employee_id,full_name,pay_period,gross_pay,bonus_amount,base_salary,bonus_ratio,grade,bank_account,emirates_id,address,hire_date,posting_date,overtime_hours,pay_rate_change_pct,status_change
+R0001,E01,Sarah Khan,2025-03-31,12500.00,1000,11000.00,0.09,G3,BA-0001,784-1990-1234567-1,"Tower A, Dubai Marina",2019-01-15,2025-03-28,5,0.0,none
+R0002,E02,Ahmed Rashid,2025-03-31,18000.00,2000,15000.00,0.13,G4,BA-0002,784-1985-2345678-2,"Al Barsha, Dubai",2017-03-10,2025-03-28,8,0.0,none
+R0003,E03,Priya Sharma,2025-03-31,22000.00,10000,12000.00,0.83,G3,BA-0003,784-1992-3456789-3,"Jumeirah, Dubai",2020-06-01,2025-03-28,0,0.0,none
+R0004,E04,John Chen,2025-03-31,25000.00,0,25000.00,0.00,G5,BA-0004,784-1988-4567890-4,"Downtown, Dubai",2015-11-20,2025-04-05,40,50.0,reactivation
+R0005,E05,Maria Souza,2025-03-31,15000.00,500,14500.00,0.03,G3,BA-0001,784-1995-5678901-5,"Deira, Dubai",2021-09-14,2025-03-28,3,0.0,none
+R0006,E06,Phantom Worker,2025-03-31,20000.00,0,20000.00,0.00,G4,BA-0006,000-0000-0000000-0,"Unknown Address",2025-03-15,2025-03-28,0,0.0,none

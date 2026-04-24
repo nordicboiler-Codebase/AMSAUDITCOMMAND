@@ -1,0 +1,7 @@
+record_id,journal_id,posting_date,posting_datetime,entry_date,entry_type,entered_by,debit_account,credit_account,amount,debit_amount,credit_amount,description,period_close_date,reverses_journal_id
+R0001,JE-2001,2025-03-03,2025-03-03T09:15:00,2025-03-03,manual,sarah.k,GL-4000,GL-1000,1250.00,1250.00,1250.00,march rent accrual,2025-03-31,
+R0002,JE-2002,2025-03-08,2025-03-08T14:22:00,2025-03-08,manual,ahmed.r,GL-5000,GL-2000,9500.00,9500.00,9500.00,consulting fees Q1,2025-03-31,
+R0003,JE-2003,2025-03-29,2025-03-29T22:30:00,2025-03-29,manual,john.c,GL-6000,GL-3000,75000.00,75000.00,75000.00,test plug adjustment,2025-03-31,
+R0004,JE-2004,2025-04-02,2025-04-02T10:00:00,2025-03-30,manual,ahmed.r,GL-5000,GL-2000,45000.00,45000.00,45000.00,march expense accrual (backdated),2025-03-31,
+R0005,JE-2005,2025-03-15,2025-03-15T11:00:00,2025-03-15,auto,system,GL-1100,GL-1000,10000.00,10000.00,10000.00,bank transfer,2025-03-31,
+R0006,JE-2006,2025-03-31,2025-03-31T23:45:00,2025-03-31,manual,sarah.k,GL-4200,GL-2100,50000.00,50000.00,49998.00,,2025-03-31,JE-2003
