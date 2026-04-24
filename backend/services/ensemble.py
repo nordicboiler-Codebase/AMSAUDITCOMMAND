@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 import polars as pl
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from backend.models import AuditAction, EnsembleRun, RiskScore, TestRun
@@ -21,6 +21,10 @@ def compute_ensemble(
     test_run_ids: list[uuid.UUID],
     user_id: uuid.UUID,
 ) -> EnsembleRun:
+    # Idempotency: remove any prior scores for this dataset before writing new ones.
+    # An ensemble is always "full state" — we rank every scored record. Allowing
+    # multiple ensemble runs to accumulate makes /risk-scores non-deterministic.
+    db.execute(delete(RiskScore).where(RiskScore.dataset_id == dataset_id))
     er = EnsembleRun(
         dataset_id=dataset_id,
         test_run_ids=[str(i) for i in test_run_ids],

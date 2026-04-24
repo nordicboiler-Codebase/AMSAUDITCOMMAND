@@ -38,6 +38,17 @@ def run_detector(
     df = pl.read_parquet(dataset.parquet_path)
     input_hash = hash_dataframe(df)
 
+    # Integrity check: the Parquet we ingest must still match the manifest hash
+    # captured at import time (control totals include it). If source_hash_sha256 is
+    # present, ensure the current parquet file still produces a consistent fingerprint.
+    # We don't re-hash the raw upload (only dataset.source_hash_sha256 captures that);
+    # instead we ensure the parquet row count matches what we stored on import.
+    if dataset.record_count and df.height != dataset.record_count:
+        raise RuntimeError(
+            f"Dataset integrity check failed: parquet has {df.height} rows but "
+            f"import recorded {dataset.record_count}. Possible tampering — refusing to run."
+        )
+
     run = TestRun(
         dataset_id=dataset_id,
         template_code=template_code,
