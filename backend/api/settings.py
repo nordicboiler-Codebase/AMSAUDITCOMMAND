@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.db import get_db
 from backend.core.security import get_current_user, require_role
 from backend.models import User
-from backend.services import email as email_svc, sso
+from backend.services import email as email_svc, retention, sso
 
 router = APIRouter()
 
@@ -109,3 +109,39 @@ def test_email(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Send failed: {e}") from e
+
+
+class RetentionIn(BaseModel):
+    enabled: bool | None = None
+    default_days: int | None = None
+    per_subledger_days: dict[str, int] | None = None
+    preserve_findings_referenced: bool | None = None
+
+
+@router.get("/retention")
+def get_retention(db: Session = Depends(get_db), _u: User = Depends(get_current_user)) -> dict:
+    return retention.get_policy(db)
+
+
+@router.put("/retention")
+def update_retention(
+    body: RetentionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("ADMIN")),
+) -> dict:
+    new_values = {k: v for k, v in body.model_dump().items() if v is not None}
+    return retention.save_policy(db, new_values=new_values, user_id=user.id)
+
+
+@router.post("/retention/scan")
+def scan_retention(
+    db: Session = Depends(get_db), _u: User = Depends(require_role("ADMIN"))
+) -> dict:
+    return retention.purge(db, dry_run=True)
+
+
+@router.post("/retention/purge")
+def purge_retention(
+    db: Session = Depends(get_db), user: User = Depends(require_role("ADMIN"))
+) -> dict:
+    return retention.purge(db, user_id=user.id, dry_run=False)
