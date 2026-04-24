@@ -18,6 +18,7 @@
   "nav.library": "Library",
   "nav.admin": "Admin",
   "nav.settings": "Settings",
+  "nav.subsidiaries": "Subsidiaries",
   "auth.username": "Username",
   "auth.password": "Password",
   "auth.sign_in": "Sign in with password",

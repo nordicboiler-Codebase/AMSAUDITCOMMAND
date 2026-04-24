@@ -12,27 +12,24 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))
 from i18n import SUPPORTED, apply_rtl_if_needed, t  # noqa: E402
+from theme import (  # noqa: E402
+    COLORS, card_close, card_open, empty_state, group_banner, heat_tile, inject_css,
+    metric_card, section_header, severity_badge, status_badge,
+)
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 NAVY = "#0b2a4a"
 TEAL = "#15a8a8"
 
-st.set_page_config(page_title="TechSource Audit Analytics", layout="wide")
-
-st.markdown(
-    f"""
-    <style>
-      .stApp {{ background: #f6f8fb; }}
-      .block-container {{ padding-top: 1.5rem; }}
-      .stButton>button {{ background: {NAVY}; color: white; border: 0; }}
-      .stButton>button:hover {{ background: {TEAL}; color: white; }}
-      h1, h2, h3 {{ color: {NAVY}; }}
-      .metric {{ color: {NAVY}; font-weight: 700; }}
-    </style>
-    """,
-    unsafe_allow_html=True,
+st.set_page_config(
+    page_title="TechSource Audit Analytics",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
+
+inject_css()
 
 
 def _client() -> httpx.Client:
@@ -116,11 +113,23 @@ def login_view() -> None:
             st.error("SSO succeeded but profile fetch failed.")
             st.query_params.clear()
 
-    col_l, col_r = st.columns([3, 1])
-    with col_r:
+    # Cleaner login: centered column, brand strip at top, language in header
+    top_l, top_r = st.columns([4, 1])
+    with top_r:
         _lang_picker("login")
-    st.title(t("app.title"))
-    st.caption(t("app.subtitle"))
+    st.markdown(
+        """
+        <div style="text-align:center; padding: 60px 20px 20px 20px;">
+          <div style="font-size: 3rem;">🛡️</div>
+          <h1 style="margin-top: 8px;">TechSource Audit Analytics</h1>
+          <p style="color:#6b7684; margin-top:-4px;">Group-wide internal audit intelligence</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    center = st.columns([1, 2, 1])[1]
+    with center:
+        pass  # form below fills centre column
 
     try:
         sso_status = httpx.get(f"{API_BASE}/api/settings/sso/status", timeout=5.0).json()
@@ -192,24 +201,35 @@ def login_view() -> None:
             st.rerun()
 
 
+NAV_GROUPS = [
+    ("Overview", [("Dashboard", "📊")]),
+    ("Audit workflow", [
+        ("Engagements", "📁"), ("Findings", "🔎"), ("Schedules", "⏰"),
+    ]),
+    ("Data & analysis", [
+        ("Datasets", "💾"), ("Connectors", "🔌"), ("Run", "▶️"),
+        ("Risk Explorer", "🎯"), ("Test Runs", "📜"),
+    ]),
+    ("Library", [
+        ("Templates", "🧪"), ("Packs", "📦"),
+        ("Template Editor", "✏️"), ("Library", "📚"),
+    ]),
+    ("Governance", [
+        ("Subsidiaries", "🏢"), ("Projects", "🗂️"), ("Audit Log", "🛡️"),
+    ]),
+    ("Admin", [("Admin", "👥"), ("Settings", "⚙️")]),
+]
+
 NAV_KEYS = {
-    "Dashboard": "nav.dashboard",
-    "Projects": "nav.projects",
-    "Engagements": "nav.engagements",
-    "Datasets": "nav.datasets",
-    "Connectors": "nav.connectors",
-    "Templates": "nav.templates",
-    "Packs": "nav.packs",
-    "Run": "nav.run",
-    "Risk Explorer": "nav.risk_explorer",
-    "Findings": "nav.findings",
-    "Schedules": "nav.schedules",
-    "Test Runs": "nav.test_runs",
-    "Audit Log": "nav.audit_log",
-    "Template Editor": "nav.template_editor",
-    "Library": "nav.library",
-    "Admin": "nav.admin",
-    "Settings": "nav.settings",
+    "Dashboard": "nav.dashboard", "Projects": "nav.projects",
+    "Engagements": "nav.engagements", "Datasets": "nav.datasets",
+    "Connectors": "nav.connectors", "Templates": "nav.templates",
+    "Packs": "nav.packs", "Run": "nav.run",
+    "Risk Explorer": "nav.risk_explorer", "Findings": "nav.findings",
+    "Schedules": "nav.schedules", "Test Runs": "nav.test_runs",
+    "Audit Log": "nav.audit_log", "Template Editor": "nav.template_editor",
+    "Library": "nav.library", "Admin": "nav.admin",
+    "Settings": "nav.settings", "Subsidiaries": "nav.subsidiaries",
 }
 
 
@@ -241,9 +261,36 @@ def sidebar() -> str:
     apply_rtl_if_needed()
     _session_warning()
     with st.sidebar:
+        # Brand strip
+        st.markdown(
+            """
+            <div style="padding: 8px 0 14px 0; text-align: center;">
+              <div style="font-size: 1.6rem;">🛡️</div>
+              <div style="color: white; font-weight: 600; font-size: 0.95rem; margin-top: 2px;">
+                TechSource Audit
+              </div>
+              <div style="color: #9aa5b1; font-size: 0.68rem; letter-spacing: 0.08em;
+                          text-transform: uppercase; margin-top: 2px;">
+                Group audit intelligence
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         _lang_picker("sidebar")
-        st.markdown(f"### {st.session_state['user']['username']}")
-        st.caption(st.session_state["user"]["role"])
+
+        user_name = st.session_state['user']['username']
+        role = st.session_state['user']['role']
+        st.markdown(
+            f"""
+            <div style="background: rgba(255,255,255,0.06); border-radius: 8px;
+                        padding: 8px 12px; margin: 6px 0;">
+              <div style="color: white; font-weight: 600; font-size: 0.9rem;">{user_name}</div>
+              <div style="color: #9aa5b1; font-size: 0.72rem;">{role}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         projects = api_get("/api/projects").json() if st.session_state.get("token") else []
         project_names = {p["name"]: p["id"] for p in projects}
         sel_project = st.selectbox(t("common.active_project"), ["(none)"] + list(project_names.keys()))
@@ -256,12 +303,23 @@ def sidebar() -> str:
         sel_dataset = st.text_input(t("common.active_dataset"), st.session_state.get("dataset_id", ""))
         st.session_state["dataset_id"] = sel_dataset or None
         st.divider()
-        nav_choices = list(NAV_KEYS.keys())
-        page = st.radio(
-            t("common.navigate"),
-            nav_choices,
-            format_func=lambda p: t(NAV_KEYS[p]),
-        )
+        # Grouped navigation (no visible radio — section header + buttons per item)
+        current = st.session_state.get("_nav_page", "Dashboard")
+        for group_label, items in NAV_GROUPS:
+            st.markdown(
+                f"<div class='ts-nav-group'>{group_label}</div>",
+                unsafe_allow_html=True,
+            )
+            for name, icon in items:
+                label = f"{icon}  {t(NAV_KEYS.get(name, name))}"
+                is_active = (current == name)
+                btn_type = "primary" if is_active else "secondary"
+                if st.button(label, key=f"nav_{name}", use_container_width=True,
+                             type=btn_type):
+                    st.session_state["_nav_page"] = name
+                    st.rerun()
+        page = st.session_state.get("_nav_page", "Dashboard")
+
         st.divider()
         if st.button(t("auth.sign_out")):
             st.session_state.clear()
@@ -270,65 +328,100 @@ def sidebar() -> str:
 
 
 def dashboard_view() -> None:
-    st.header(t("nav.dashboard"))
+    section_header(
+        t("nav.dashboard"),
+        "Group-wide audit posture across all subsidiaries, engagements, and open findings.",
+    )
     m = api_get("/api/metrics/dashboard").json()
+    rollup_resp = api_get("/api/subsidiaries/rollup")
+    rollup = rollup_resp.json() if rollup_resp.status_code == 200 else []
 
+    group_banner(
+        f"Group audit: {len(rollup)} subsidiaries in scope",
+        f"{sum(r['findings_open'] for r in rollup)} open findings "
+        f"• {sum(r['findings_high_critical'] for r in rollup)} high / critical "
+        f"• {sum(r['test_runs'] for r in rollup)} test runs logged",
+    )
+
+    # Primary metrics
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Projects", m.get("projects", 0))
-    c2.metric("Active engagements", m.get("engagements_in_progress", 0))
-    c3.metric("Open findings", m.get("findings_open", 0),
-              delta=m.get("findings_this_month", 0),
-              delta_color="off", help="Δ = findings raised in last 30 days")
-    c4.metric("High/Critical open", m.get("findings_high_or_critical", 0))
+    with c1: metric_card("Open findings", m.get("findings_open", 0),
+                         delta=f"+{m.get('findings_this_month', 0)} last 30d",
+                         trend="up" if m.get("findings_this_month", 0) > 0 else "flat",
+                         icon="📋")
+    with c2: metric_card("High / Critical", m.get("findings_high_or_critical", 0),
+                         icon="🚨",
+                         accent=COLORS["danger"] if m.get("findings_high_or_critical", 0) else None)
+    with c3: metric_card("Active engagements", m.get("engagements_in_progress", 0),
+                         icon="📁")
+    with c4: metric_card("Subsidiaries", len(rollup), icon="🏢")
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Runs last 7 days", m.get("runs_this_week", 0))
-    c6.metric("Active schedules", m.get("schedules_active", 0))
-    c7.metric("Datasets imported", m.get("datasets", 0))
-    c8.metric("Templates", 143)
+    with c5: metric_card("Runs last 7 days", m.get("runs_this_week", 0), icon="▶️")
+    with c6: metric_card("Active schedules", m.get("schedules_active", 0), icon="⏰")
+    with c7: metric_card("Datasets", m.get("datasets", 0), icon="💾")
+    with c8: metric_card("Templates", 148, icon="🧪")
 
-    st.divider()
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Findings by severity (open)")
+    # Subsidiary heatmap + trend side by side
+    col_heat, col_trend = st.columns([5, 7])
+
+    with col_heat:
+        card_open("Subsidiary risk heatmap")
+        if rollup:
+            top_subs = rollup[:8]
+            cols = st.columns(2)
+            for i, r in enumerate(top_subs):
+                with cols[i % 2]:
+                    meta = (f"{r['findings_open']} open • {r['findings_high_critical']} H/C "
+                            f"• {r['test_runs']} runs")
+                    heat_tile(r["code"], r["name"] or r["code"],
+                              r["max_risk_score"] or 0.0, meta=meta)
+        else:
+            empty_state("🏢", "No subsidiaries configured",
+                        "Admin → Subsidiaries to register your group entities.")
+        card_close()
+
+    with col_trend:
+        card_open("Findings trend — last 12 weeks")
+        trend = m.get("finding_trend_last_84d", [])
+        if trend:
+            df = pd.DataFrame(trend)
+            df["week"] = pd.to_datetime(df["week"])
+            st.line_chart(df.set_index("week"), height=180)
+        else:
+            empty_state("📈", "No historical data yet",
+                        "Trend populates once findings accumulate over multiple weeks.")
+        card_close()
+
+        card_open("Severity mix (open findings)")
         sev = m.get("findings_by_severity", {})
         if sev:
             df = pd.DataFrame(
-                [{"severity": s, "count": n} for s, n in sev.items()]
-            ).sort_values("severity")
-            st.bar_chart(df.set_index("severity"))
+                [{"Severity": s, "Count": n} for s, n in sev.items()]
+            ).sort_values("Severity")
+            st.bar_chart(df.set_index("Severity"), height=140)
         else:
-            st.caption("No open findings.")
-    with right:
-        st.subheader("Findings by status")
-        st_map = m.get("findings_by_status", {})
-        if st_map:
-            df = pd.DataFrame([{"status": s, "count": n} for s, n in st_map.items()])
-            st.bar_chart(df.set_index("status"))
-        else:
-            st.caption("No findings yet.")
+            empty_state("✅", "No open findings", "You're clear across all subsidiaries.")
+        card_close()
 
-    st.subheader("Findings trend — last 12 weeks")
-    trend = m.get("finding_trend_last_84d", [])
-    if trend:
-        df = pd.DataFrame(trend)
-        df["week"] = pd.to_datetime(df["week"])
-        st.line_chart(df.set_index("week"))
-    else:
-        st.caption("Not enough historical data yet.")
-
-    st.subheader("Top 10 risky records across all datasets")
+    # Top risky records — full width card
+    card_open("Top 10 records at risk — cross-subsidiary")
     top = m.get("top_risk_records", [])
     if top:
         df = pd.DataFrame([
-            {"record_key": r["record_key"], "score": round(r["score"], 1),
-             "detectors": ", ".join(r["detectors"])}
+            {"Record": r["record_key"], "Score": round(r["score"], 1),
+             "Detectors that fired": ", ".join(r["detectors"])}
             for r in top
         ])
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        st.caption("Run a pack + ensemble to populate this.")
+        empty_state("🎯", "No risk scores yet",
+                    "Run a pack and compute an ensemble to see the top-risk roll-up.")
+    card_close()
 
 
 def projects_view() -> None:
@@ -896,6 +989,70 @@ def connectors_view() -> None:
             st.json(data)
         elif r is not None:
             show_error(r)
+
+
+def subsidiaries_view() -> None:
+    section_header(
+        "Subsidiaries",
+        "Group entities under audit scope. Risk rating and rollup metrics shown live.",
+    )
+    subs = api_get("/api/subsidiaries").json()
+    rollup_map = {r["code"]: r for r in api_get("/api/subsidiaries/rollup").json()}
+
+    if not subs:
+        empty_state("🏢", "No subsidiaries yet",
+                    "Register the group entities you audit — one row per subsidiary / entity.")
+    else:
+        cols = st.columns(4)
+        for i, s in enumerate(subs):
+            roll = rollup_map.get(s["code"], {})
+            with cols[i % 4]:
+                rating = s.get("risk_rating") or "UNRATED"
+                rating_badge = severity_badge(rating) if rating in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else \
+                    '<span class="ts-badge muted">UNRATED</span>'
+                st.markdown(
+                    f"""
+                    <div class="ts-card" style="padding: 16px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="font-weight:600; color:#0b2a4a;">{s['code']}</div>
+                        {rating_badge}
+                      </div>
+                      <div style="font-size:0.95rem; margin-top:4px;">{s['name']}</div>
+                      <div style="color:#6b7684; font-size:0.78rem; margin-top:2px;">
+                        {s.get('country') or ''} • {s.get('segment') or ''}
+                      </div>
+                      <div style="margin-top:10px; display:flex; gap:14px;
+                                  font-size:0.78rem; color:#6b7684;">
+                        <div>🔎 {roll.get('findings_open', 0)} open</div>
+                        <div>🚨 {roll.get('findings_high_critical', 0)} H/C</div>
+                        <div>🎯 {roll.get('max_risk_score', 0):.0f}</div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    with st.expander("➕ Register a new subsidiary"):
+        with st.form("new_sub"):
+            c = st.text_input("Code (e.g. DI-001)")
+            n = st.text_input("Name")
+            country = st.text_input("Country code (3 letters)", max_chars=4)
+            industry = st.text_input("Industry")
+            segment = st.text_input("Business segment")
+            rating = st.selectbox("Risk rating", ["LOW", "MEDIUM", "HIGH", "CRITICAL"])
+            parent = st.text_input("Parent code (for sub-subsidiaries)")
+            if st.form_submit_button("Register"):
+                r = api_post("/api/subsidiaries", json={
+                    "code": c, "name": n, "country": country or None,
+                    "industry": industry or None, "segment": segment or None,
+                    "risk_rating": rating, "parent_code": parent or None,
+                    "is_active": True,
+                })
+                if r.status_code == 200:
+                    st.success(f"Registered {c}")
+                    st.rerun()
+                else:
+                    show_error(r)
 
 
 def engagements_view() -> None:
@@ -1483,6 +1640,7 @@ def main() -> None:
     views = {
         "Dashboard": dashboard_view,
         "Projects": projects_view,
+        "Subsidiaries": subsidiaries_view,
         "Engagements": engagements_view,
         "Datasets": datasets_view,
         "Connectors": connectors_view,
