@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
         runs,
         schedules,
         settings,
+        subsidiaries,
         templates,
         users,
     )
@@ -87,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(connectors.router, prefix="/api/connectors", tags=["connectors"])
     app.include_router(bi_export.router, prefix="/api/bi", tags=["bi_export"])
     app.include_router(monitors.router, prefix="/api/monitors", tags=["monitors"])
+    app.include_router(subsidiaries.router, prefix="/api/subsidiaries", tags=["subsidiaries"])
 
     return app
 

@@ -73,6 +73,9 @@ class Project(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text)
     subsidiary_code: Mapped[str | None] = mapped_column(String(50), index=True)
+    subsidiary_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subsidiaries.id"), index=True
+    )
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
     logo_data_uri: Mapped[str | None] = mapped_column(Text)
@@ -205,6 +208,22 @@ class RiskScore(Base):
     __table_args__ = (
         CheckConstraint("score >= 0 AND score <= 100", name="ck_score_range"),
     )
+
+
+class Subsidiary(Base, TimestampMixin):
+    __tablename__ = "subsidiaries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    country: Mapped[str | None] = mapped_column(String(4))
+    industry: Mapped[str | None] = mapped_column(String(64))
+    risk_rating: Mapped[str | None] = mapped_column(String(16))
+    parent_code: Mapped[str | None] = mapped_column(String(32))
+    segment: Mapped[str | None] = mapped_column(String(64))
+    logo_data_uri: Mapped[str | None] = mapped_column(Text)
+    brand_primary: Mapped[str] = mapped_column(String(16), default="#0b2a4a")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class ProjectMember(Base):
