@@ -76,9 +76,25 @@ html, body, [data-testid="stAppViewContainer"] {{
 * {{ box-sizing: border-box; }}
 
 .main > div.block-container {{
-  padding-top: 1.4rem;
-  padding-bottom: 3rem;
+  padding-top: 1rem;
+  padding-bottom: 2.5rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
   max-width: 1440px;
+}}
+/* Main content vertical rhythm — let our cards do the spacing */
+.main [data-testid="stVerticalBlock"] {{
+  gap: 12px;
+}}
+.main [data-testid="stHorizontalBlock"] {{
+  gap: 14px !important;
+}}
+.main [data-testid="stVerticalBlockBorderWrapper"] {{
+  gap: 8px !important;
+}}
+/* Reset Streamlit's default element spacing in main area */
+.main [data-testid="element-container"] {{
+  margin-bottom: 0 !important;
 }}
 code, pre {{ font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }}
 
@@ -224,13 +240,33 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .ts-heat-tile .meta   {{ font-size: 0.75rem; color: {COLORS['text_muted']};
                          margin-top: 6px; }}
 
-/* ---------- SIDEBAR — dark, branded, polished ---------- */
+/* ---------- SIDEBAR — dark, branded, tight ---------- */
 section[data-testid="stSidebar"] {{
   background: {COLORS['sb_bg']};
   border-right: 1px solid {COLORS['primary_700']};
+  width: 248px !important;
+  min-width: 248px !important;
+  max-width: 248px !important;
 }}
-section[data-testid="stSidebar"] > div:first-child {{
-  padding-top: 1rem;
+section[data-testid="stSidebar"] > div {{
+  padding-top: 0 !important;
+}}
+section[data-testid="stSidebar"] > div > div {{
+  padding: 0.5rem 0.75rem 1rem 0.75rem !important;
+  gap: 0 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+  gap: 2px !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {{
+  gap: 0 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="element-container"] {{
+  margin-bottom: 0 !important;
+}}
+/* Collapse default element padding */
+section[data-testid="stSidebar"] [data-testid="stElementContainer"] {{
+  margin: 0 !important;
 }}
 section[data-testid="stSidebar"] * {{ color: {COLORS['text_on_dark']}; }}
 section[data-testid="stSidebar"] h1,
@@ -238,14 +274,18 @@ section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {{ color: white !important; }}
 section[data-testid="stSidebar"] hr {{
   border-color: rgba(255,255,255,0.08);
-  margin: 14px 0;
+  margin: 10px 0 6px 0;
 }}
-section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] small,
-section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] div {{
-  color: {COLORS['text_on_dark_muted']};
+section[data-testid="stSidebar"] label {{
+  color: rgba(255,255,255,0.6) !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding-bottom: 2px !important;
 }}
 
-/* Inputs in sidebar */
+/* Inputs in sidebar — compact */
 section[data-testid="stSidebar"] input,
 section[data-testid="stSidebar"] textarea,
 section[data-testid="stSidebar"] [data-baseweb="select"] > div {{
@@ -253,37 +293,50 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div {{
   color: {COLORS['text_on_dark']} !important;
   border-color: rgba(255,255,255,0.08) !important;
   border-radius: 8px !important;
+  font-size: 0.82rem !important;
+  min-height: 34px !important;
 }}
 section[data-testid="stSidebar"] [data-baseweb="select"] span,
 section[data-testid="stSidebar"] [data-baseweb="select"] div {{
   color: {COLORS['text_on_dark']} !important;
 }}
+section[data-testid="stSidebar"] [data-baseweb="select"] {{ margin-bottom: 4px !important; }}
+section[data-testid="stSidebar"] .stSelectbox {{ margin-bottom: 6px !important; }}
 
 /* Nav group label */
 section[data-testid="stSidebar"] .ts-nav-group {{
-  color: rgba(255,255,255,0.4) !important;
-  font-size: 0.65rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.12em;
-  padding: 16px 4px 6px 8px;
+  color: rgba(255,255,255,0.38) !important;
+  font-size: 0.6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  padding: 10px 6px 2px 8px;
 }}
 
-/* Sidebar buttons are our nav items — kill white bg entirely */
-section[data-testid="stSidebar"] .stButton {{ margin: 2px 0 !important; }}
+/* Sidebar buttons — ultra-tight nav items */
+section[data-testid="stSidebar"] .stButton {{
+  margin: 0 !important;
+  padding: 0 !important;
+}}
+section[data-testid="stSidebar"] div[data-testid="element-container"]:has(.stButton) {{
+  margin: 1px 0 !important;
+}}
 section[data-testid="stSidebar"] .stButton > button {{
   background: transparent !important;
-  color: {COLORS['text_on_dark_muted']} !important;
+  color: rgba(255,255,255,0.72) !important;
   border: none !important;
-  border-radius: 8px !important;
-  padding: 9px 14px !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 6px !important;
+  padding: 7px 10px 7px 11px !important;
   font-weight: 500 !important;
-  font-size: 0.88rem !important;
+  font-size: 0.84rem !important;
   text-align: left !important;
   justify-content: flex-start !important;
   width: 100% !important;
   box-shadow: none !important;
-  transition: all 0.12s ease;
+  transition: all 0.1s ease;
   min-height: unset !important;
   height: auto !important;
+  line-height: 1.2 !important;
+  margin: 0 !important;
 }}
 section[data-testid="stSidebar"] .stButton > button:hover {{
   background: {COLORS['sb_hover']} !important;
@@ -298,39 +351,42 @@ section[data-testid="stSidebar"] .stButton > button[kind="primary"] {{
   background: {COLORS['sb_active_bg']} !important;
   color: {COLORS['sb_active_text']} !important;
   font-weight: 600 !important;
-  border-left: 3px solid {COLORS['accent']} !important;
-  padding-left: 11px !important;
+  border-left-color: {COLORS['accent']} !important;
 }}
 
-/* Sidebar sign-out button */
+/* Sign-out button */
+section[data-testid="stSidebar"] .stButton.ts-signout {{ margin-top: 6px !important; }}
 section[data-testid="stSidebar"] .stButton.ts-signout > button {{
-  background: rgba(194,52,47,0.18) !important;
+  background: rgba(194,52,47,0.15) !important;
   color: #ffd4d3 !important;
   text-align: center !important; justify-content: center !important;
-  border: 1px solid rgba(194,52,47,0.35) !important;
+  border: 1px solid rgba(194,52,47,0.3) !important;
+  border-left: 1px solid rgba(194,52,47,0.3) !important;
+  font-size: 0.8rem !important;
+  padding: 6px 10px !important;
 }}
 
-/* User card / brand strip / project pill in sidebar */
+/* Brand strip / user card — compact */
 .ts-sb-brand {{
-  padding: 2px 8px 14px 8px; text-align: center;
+  padding: 4px 4px 10px 4px; text-align: center;
 }}
-.ts-sb-brand .logo {{ font-size: 1.8rem; line-height: 1; }}
+.ts-sb-brand .logo {{ font-size: 1.5rem; line-height: 1; }}
 .ts-sb-brand .title {{
-  color: white; font-weight: 700; font-size: 0.95rem;
-  margin-top: 6px; letter-spacing: -0.01em;
+  color: white; font-weight: 700; font-size: 0.88rem;
+  margin-top: 4px; letter-spacing: -0.01em;
 }}
 .ts-sb-brand .tag {{
-  color: rgba(255,255,255,0.45); font-size: 0.65rem;
-  text-transform: uppercase; letter-spacing: 0.12em; margin-top: 2px;
+  color: rgba(255,255,255,0.4); font-size: 0.58rem;
+  text-transform: uppercase; letter-spacing: 0.12em; margin-top: 1px;
 }}
 .ts-sb-user {{
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px 0;
+  border-radius: 8px; padding: 7px 10px; margin: 6px 0 8px 0;
 }}
-.ts-sb-user .name {{ color: white; font-weight: 600; font-size: 0.88rem; }}
-.ts-sb-user .role {{ color: rgba(255,255,255,0.55); font-size: 0.7rem;
-                    text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }}
+.ts-sb-user .name {{ color: white; font-weight: 600; font-size: 0.82rem; line-height: 1.1; }}
+.ts-sb-user .role {{ color: rgba(255,255,255,0.5); font-size: 0.62rem;
+                    text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }}
 
 /* ---------- BUTTONS (main area) ---------- */
 .stButton > button {{

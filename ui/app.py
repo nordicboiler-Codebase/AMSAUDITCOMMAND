@@ -370,7 +370,7 @@ def dashboard_view() -> None:
                          icon="📁")
     with c4: metric_card("Subsidiaries", len(rollup), icon="🏢")
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    # layout gap handled by CSS rhythm
 
     c5, c6, c7, c8 = st.columns(4)
     with c5: metric_card("Runs last 7 days", m.get("runs_this_week", 0), icon="▶️")
@@ -378,7 +378,7 @@ def dashboard_view() -> None:
     with c7: metric_card("Datasets", m.get("datasets", 0), icon="💾")
     with c8: metric_card("Templates", 148, icon="🧪")
 
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    # layout gap handled by CSS rhythm
 
     # Subsidiary heatmap + trend side by side
     col_heat, col_trend = st.columns([5, 7])
@@ -969,7 +969,7 @@ def findings_view() -> None:
     with c[2]: metric_card("Medium", sev_counts["MEDIUM"], icon="🔶", accent=COLORS["medium"])
     with c[3]: metric_card("Low", sev_counts["LOW"], icon="🔵", accent=COLORS["low"])
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    # layout gap handled by CSS rhythm
     sc = st.columns(7)
     labels = [("Draft", "DRAFT"), ("Under review", "UNDER_REVIEW"),
               ("Confirmed", "CONFIRMED"), ("False positive", "FALSE_POSITIVE"),
@@ -1139,7 +1139,7 @@ def ml_feedback_view() -> None:
                            accent=COLORS["danger"])
     with c[3]: metric_card("Overall precision", f"{s['overall_precision']:.0%}", icon="🎯")
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    # layout gap handled by CSS rhythm
     card_open("Per-detector precision")
     det = rep.get("per_detector", [])
     if det:
