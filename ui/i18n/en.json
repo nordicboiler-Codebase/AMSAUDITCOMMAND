@@ -19,6 +19,7 @@
   "nav.admin": "Admin",
   "nav.settings": "Settings",
   "nav.subsidiaries": "Subsidiaries",
+  "nav.ml_feedback": "ML Feedback",
   "auth.username": "Username",
   "auth.password": "Password",
   "auth.sign_in": "Sign in with password",

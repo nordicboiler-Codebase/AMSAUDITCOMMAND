@@ -217,6 +217,7 @@ NAV_GROUPS = [
     ("Governance", [
         ("Subsidiaries", "🏢"), ("Projects", "🗂️"), ("Audit Log", "🛡️"),
     ]),
+    ("Insights", [("ML Feedback", "🏷️")]),
     ("Admin", [("Admin", "👥"), ("Settings", "⚙️")]),
 ]
 
@@ -230,6 +231,7 @@ NAV_KEYS = {
     "Audit Log": "nav.audit_log", "Template Editor": "nav.template_editor",
     "Library": "nav.library", "Admin": "nav.admin",
     "Settings": "nav.settings", "Subsidiaries": "nav.subsidiaries",
+    "ML Feedback": "nav.ml_feedback",
 }
 
 
@@ -1109,6 +1111,43 @@ def connectors_view() -> None:
             show_error(r)
 
 
+def ml_feedback_view() -> None:
+    section_header(
+        "ML Precision Feedback",
+        "Human decisions on findings (TP/FP) grade each detector. "
+        "Use this to up-weight high-precision tests and prune noisy ones.",
+    )
+    rep = api_get("/api/feedback/precision").json()
+    s = rep["summary"]
+    c = st.columns(4)
+    with c[0]: metric_card("Total labels", s["total_labels"], icon="🏷️")
+    with c[1]: metric_card("True positives", s["true_positive"], icon="✅",
+                           accent=COLORS["success"])
+    with c[2]: metric_card("False positives", s["false_positive"], icon="❌",
+                           accent=COLORS["danger"])
+    with c[3]: metric_card("Overall precision", f"{s['overall_precision']:.0%}", icon="🎯")
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    card_open("Per-detector precision")
+    det = rep.get("per_detector", [])
+    if det:
+        df = pd.DataFrame(det)
+        df["precision"] = df["precision"].map(lambda v: f"{v:.0%}")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        empty_state("🏷️", "No labels yet",
+                    "Close findings as CONFIRMED or FALSE_POSITIVE — each one trains the model.")
+    card_close()
+
+    card_open("Per-template precision")
+    tpl = rep.get("per_template", [])
+    if tpl:
+        df = pd.DataFrame(tpl)
+        df["precision"] = df["precision"].map(lambda v: f"{v:.0%}")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    card_close()
+
+
 def subsidiaries_view() -> None:
     section_header(
         "Subsidiaries",
@@ -1767,6 +1806,7 @@ def main() -> None:
         "Dashboard": dashboard_view,
         "Projects": projects_view,
         "Subsidiaries": subsidiaries_view,
+        "ML Feedback": ml_feedback_view,
         "Engagements": engagements_view,
         "Datasets": datasets_view,
         "Connectors": connectors_view,

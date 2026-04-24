@@ -191,9 +191,30 @@ enterprise controls are now in place:
   (comma-separated if multiple), restart; ciphertext decrypts transparently.
   Schedule `rotate_secret()` to re-encrypt historical ciphertext.
 
-Phase D candidates (not yet done): AG Grid in Risk Explorer, mobile/tablet responsive,
-Redis rate limiter for multi-worker, supervised ML with labelled finding feedback,
-SCIM user provisioning, fine-grained per-field data-access policies.
+**Phase D — Group-audit reorientation + enterprise features complete.**
+
+42. **Subsidiary entity** — first-class `subsidiaries` table; each project links to one.
+    Per-entity risk rating, country, segment. `/api/subsidiaries/rollup` powers
+    dashboard heatmap with per-subsidiary findings / max-score / run counts.
+43. **Design system** — `ui/theme.py` with design tokens + reusable primitives
+    (metric_card, section_header, empty_state, heat_tile, group_banner,
+    status/severity badges). Dark branded sidebar with grouped navigation.
+44. **Risk Explorer with AG Grid** — interactive sortable/filterable grid, row-select
+    drill-down card with per-detector explainability.
+45. **ML precision feedback** — `finding_labels` captures TP/FP on every
+    CONFIRMED / FALSE_POSITIVE transition. `/api/feedback/precision` returns
+    per-detector and per-template precision + suggested weight scale. Dedicated
+    "ML Feedback" UI page.
+46. **SCIM 2.0 provisioning** — `/scim/v2/Users` (GET list/get, POST, PATCH, DELETE)
+    for IdP-driven lifecycle. Users carry `external_id` + `scim_source`.
+47. **Per-field data classification** — `field_sensitivities` table, API at
+    `/api/datasets/{id}/field-sensitivity` to tag columns PII / FINANCIAL /
+    CONFIDENTIAL / RESTRICTED / PUBLIC / INTERNAL.
+
+Remaining Phase D+ candidates: Redis rate limiter for multi-host deployments,
+mobile/tablet responsive layout, AG Grid in Findings, advanced supervised-ML
+training job that consumes finding_labels, outbound SCIM push to Entra (currently
+endpoint only; Entra/Okta call in — we don't push out).
 
 ## Commands
 
