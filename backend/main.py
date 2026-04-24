@@ -50,6 +50,8 @@ def create_app() -> FastAPI:
         datasets,
         engagements,
         ensemble,
+        feedback,
+        field_sensitivity,
         findings,
         metrics,
         monitors,
@@ -61,6 +63,7 @@ def create_app() -> FastAPI:
         risk,
         runs,
         schedules,
+        scim,
         settings,
         subsidiaries,
         templates,
@@ -89,6 +92,9 @@ def create_app() -> FastAPI:
     app.include_router(bi_export.router, prefix="/api/bi", tags=["bi_export"])
     app.include_router(monitors.router, prefix="/api/monitors", tags=["monitors"])
     app.include_router(subsidiaries.router, prefix="/api/subsidiaries", tags=["subsidiaries"])
+    app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
+    app.include_router(field_sensitivity.router, prefix="/api", tags=["field_sensitivity"])
+    app.include_router(scim.router, prefix="/scim/v2", tags=["scim"])
 
     return app
 

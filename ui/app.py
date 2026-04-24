@@ -798,22 +798,62 @@ def risk_view() -> None:
 
     min_score = st.slider("Minimum score", 0, 100, 50)
     r = api_get(f"/api/datasets/{dsid}/risk-scores",
-                params={"min_score": min_score, "limit": 200, "sort": "desc"})
+                params={"min_score": min_score, "limit": 500, "sort": "desc"})
     if r.status_code != 200:
-        st.error(r.text)
+        show_error(r)
         return
     rows = r.json()
     if not rows:
-        st.info("No risk scores yet. Run a pack + ensemble first.")
+        empty_state("🎯", "No scores in this range",
+                    "Lower the threshold, or run a pack + ensemble first.")
         return
-    df = pd.DataFrame([{"record_key": x["record_key"], "score": x["score"],
-                        "detectors": len(x["contributing_detectors"])} for x in rows])
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    record = st.text_input("Inspect record key")
-    if record:
-        detail = api_get(f"/api/datasets/{dsid}/risk-scores/{record}")
-        if detail.status_code == 200:
-            st.json(detail.json())
+
+    try:
+        from st_aggrid import AgGrid, GridOptionsBuilder
+        df = pd.DataFrame([
+            {
+                "record_key": x["record_key"],
+                "score": round(x["score"], 1),
+                "severity": ("CRITICAL" if x["score"] >= 90 else
+                             "HIGH" if x["score"] >= 70 else
+                             "MEDIUM" if x["score"] >= 40 else "LOW"),
+                "detectors_count": len(x["contributing_detectors"]),
+                "detectors": ", ".join(sorted({c.get("detector_name", "")
+                                               for c in x["contributing_detectors"]})),
+            }
+            for x in rows
+        ])
+        gb = GridOptionsBuilder.from_dataframe(df)
+        gb.configure_default_column(filter=True, sortable=True, resizable=True)
+        gb.configure_selection(selection_mode="single")
+        gb.configure_column("score", width=100,
+                            cellStyle={"textAlign": "right", "fontWeight": 600})
+        gb.configure_column("detectors", flex=2)
+        grid = AgGrid(df, gridOptions=gb.build(), theme="alpine",
+                      height=480, fit_columns_on_grid_load=True)
+        selected = grid.get("selected_rows") or []
+        if len(selected) > 0:
+            rec = selected[0]["record_key"] if isinstance(selected, list) else selected.iloc[0]["record_key"]
+            detail = api_get(f"/api/datasets/{dsid}/risk-scores/{rec}")
+            if detail.status_code == 200:
+                d = detail.json()
+                card_open(f"Record {rec} — score {d['score']:.1f}")
+                for c in d["contributing_detectors"]:
+                    st.markdown(
+                        f"- **{c.get('detector_name', '')}** "
+                        f"(tpl: {c.get('template_code', 'n/a')}, "
+                        f"weight {c.get('weight', 1):.1f}) — {c.get('reason', '')}"
+                    )
+                card_close()
+    except ImportError:
+        df = pd.DataFrame([{"record_key": x["record_key"], "score": round(x["score"], 1),
+                            "detectors": len(x["contributing_detectors"])} for x in rows])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        record = st.text_input("Inspect record key")
+        if record:
+            detail = api_get(f"/api/datasets/{dsid}/risk-scores/{record}")
+            if detail.status_code == 200:
+                st.json(detail.json())
 
 
 def runs_view() -> None:

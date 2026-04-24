@@ -138,6 +138,15 @@ def transition_status(
     if new_status in {FindingStatus.REMEDIATED, FindingStatus.ACCEPTED_RISK}:
         finding.closed_at = datetime.now(timezone.utc)
 
+    # ML feedback loop: record labelled outcomes on human decisions.
+    if new_status in {FindingStatus.CONFIRMED, FindingStatus.FALSE_POSITIVE}:
+        try:
+            from backend.services import feedback
+
+            feedback.record_label_on_status_change(db, finding=finding, user_id=user.id)
+        except Exception:
+            pass  # feedback is advisory — never block a valid transition
+
     if comment:
         db.add(FindingComment(
             finding_id=finding.id, author_id=user.id, body=comment,
