@@ -48,6 +48,30 @@ def api_post(path: str, **kwargs):
         return c.post(path, **kwargs)
 
 
+def show_error(resp) -> None:
+    try:
+        detail = resp.json().get("detail")
+        if isinstance(detail, list):
+            msgs = [d.get("msg", str(d)) for d in detail]
+            st.error("\n".join(msgs))
+            return
+        if detail:
+            st.error(str(detail))
+            return
+    except Exception:
+        pass
+    st.error(f"HTTP {resp.status_code}: {resp.text[:500]}")
+
+
+def call_with_spinner(message: str, fn, *args, **kwargs):
+    try:
+        with st.spinner(message):
+            return fn(*args, **kwargs)
+    except Exception as e:
+        st.error(f"Request failed: {e}")
+        return None
+
+
 def _fetch_me_with_token(token: str) -> dict | None:
     me = httpx.get(
         f"{API_BASE}/api/auth/me",
@@ -256,11 +280,17 @@ def datasets_view() -> None:
                     "subledger_type": subledger,
                     "description": description,
                 }
-                r = api_post("/api/datasets/import", files=files, data=data)
-                if r.status_code == 200:
+                r = call_with_spinner(
+                    f"Hashing + importing {file.name}...",
+                    api_post, "/api/datasets/import", files=files, data=data,
+                )
+                if r is None:
+                    pass
+                elif r.status_code == 200:
                     st.success(f"Imported. Dataset ID: {r.json()['dataset_id']}")
+                    st.toast("Import complete", icon="✅")
                 else:
-                    st.error(r.text)
+                    show_error(r)
     st.subheader("Datasets in this project")
     listing = api_get("/api/datasets", params={"project_id": st.session_state["project_id"]})
     if listing.status_code == 200:
@@ -327,11 +357,22 @@ def packs_view() -> None:
         if d.status_code == 200:
             st.json(d.json())
             if st.button(f"Run {code} on active dataset") and st.session_state.get("dataset_id"):
-                r = api_post("/api/packs/run", json={
-                    "dataset_id": st.session_state["dataset_id"], "pack_code": code,
-                    "template_overrides": {}
-                })
-                st.json(r.json())
+                r = call_with_spinner(
+                    f"Running pack {code} — this can take 30–60s for a full pack...",
+                    api_post, "/api/packs/run",
+                    json={
+                        "dataset_id": st.session_state["dataset_id"], "pack_code": code,
+                        "template_overrides": {}
+                    },
+                )
+                if r and r.status_code == 200:
+                    data = r.json()
+                    s = data.get("summary", {})
+                    st.success(f"Pack complete: {s.get('templates_run', 0)} tests ran")
+                    st.toast("Pack run complete", icon="✅")
+                    st.json(data)
+                elif r is not None:
+                    show_error(r)
 
 
 def run_view() -> None:
@@ -346,32 +387,58 @@ def run_view() -> None:
         overrides = st.text_area("Param overrides (JSON)", value="{}", key="t_over")
         if st.button("Run template") and code:
             try:
-                r = api_post("/api/runs/template", json={
+                body = {
                     "dataset_id": dsid, "template_code": code,
-                    "param_overrides": json.loads(overrides or "{}")
-                })
-                st.json(r.json())
+                    "param_overrides": json.loads(overrides or "{}"),
+                }
             except Exception as e:
-                st.error(str(e))
+                st.error(f"Invalid JSON in overrides: {e}")
+                return
+            r = call_with_spinner(
+                f"Running template {code}...", api_post, "/api/runs/template", json=body,
+            )
+            if r and r.status_code == 200:
+                data = r.json()
+                st.success(f"Complete: {data.get('findings_count', 0)} findings")
+                st.toast("Template run complete", icon="✅")
+                st.json(data)
+            elif r is not None:
+                show_error(r)
     with tab2:
         pack = st.text_input("Pack code", key="p_code")
         if st.button("Run pack") and pack:
-            r = api_post("/api/packs/run", json={
-                "dataset_id": dsid, "pack_code": pack, "template_overrides": {}
-            })
-            st.json(r.json())
+            r = call_with_spinner(
+                f"Running pack {pack}...", api_post, "/api/packs/run",
+                json={"dataset_id": dsid, "pack_code": pack, "template_overrides": {}},
+            )
+            if r and r.status_code == 200:
+                data = r.json()
+                s = data.get("summary", {})
+                st.success(f"Pack complete: {s.get('templates_run', 0)} tests ran")
+                st.json(data)
+            elif r is not None:
+                show_error(r)
     with tab3:
         det = st.text_input("Detector name", key="d_name")
         params = st.text_area("Params (JSON)", value="{}", key="d_params")
         if st.button("Run detector") and det:
             try:
-                r = api_post("/api/runs/detector", json={
+                body = {
                     "dataset_id": dsid, "detector_name": det,
-                    "params": json.loads(params or "{}")
-                })
-                st.json(r.json())
+                    "params": json.loads(params or "{}"),
+                }
             except Exception as e:
-                st.error(str(e))
+                st.error(f"Invalid JSON: {e}")
+                return
+            r = call_with_spinner(
+                f"Running detector {det}...", api_post, "/api/runs/detector", json=body,
+            )
+            if r and r.status_code == 200:
+                data = r.json()
+                st.success(f"Complete: {data.get('findings_count', 0)} findings")
+                st.json(data)
+            elif r is not None:
+                show_error(r)
 
 
 def risk_view() -> None:
@@ -388,23 +455,26 @@ def risk_view() -> None:
         if st.button("Run / refresh ensemble"):
             runs_resp = api_get(f"/api/datasets/{dsid}/runs")
             if runs_resp.status_code != 200:
-                st.error(f"Could not list runs: {runs_resp.text}")
+                show_error(runs_resp)
             else:
                 completed = [r["id"] for r in runs_resp.json() if r.get("status") == "COMPLETED"]
                 if not completed:
                     st.warning("No completed test runs yet. Run a template or pack first.")
                 else:
-                    ens = api_post("/api/ensemble", json={
-                        "dataset_id": dsid, "test_run_ids": completed,
-                    })
-                    if ens.status_code == 200:
+                    ens = call_with_spinner(
+                        f"Scoring ensemble across {len(completed)} runs...",
+                        api_post, "/api/ensemble",
+                        json={"dataset_id": dsid, "test_run_ids": completed},
+                    )
+                    if ens and ens.status_code == 200:
                         s = ens.json().get("summary", {})
                         st.success(
                             f"Ensemble complete: {s.get('records_scored', 0)} records | "
                             f"max={round(s.get('max_score', 0), 1)} mean={round(s.get('mean_score', 0), 1)}"
                         )
-                    else:
-                        st.error(ens.text)
+                        st.toast("Ensemble scored", icon="🎯")
+                    elif ens is not None:
+                        show_error(ens)
 
     min_score = st.slider("Minimum score", 0, 100, 50)
     r = api_get(f"/api/datasets/{dsid}/risk-scores",
