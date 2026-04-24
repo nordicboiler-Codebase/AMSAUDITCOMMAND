@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
         reports,
         risk,
         runs,
+        schedules,
         settings,
         templates,
         users,
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(library.router, prefix="/api/library", tags=["library"])
     app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
     app.include_router(findings.router, prefix="/api/findings", tags=["findings"])
+    app.include_router(schedules.router, prefix="/api/schedules", tags=["schedules"])
 
     return app
 
