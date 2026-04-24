@@ -200,13 +200,64 @@ def sidebar() -> str:
 
 def dashboard_view() -> None:
     st.header("Dashboard")
-    col1, col2, col3 = st.columns(3)
-    projects = api_get("/api/projects").json()
-    templates = api_get("/api/templates").json()
-    col1.metric("Projects", len(projects))
-    col2.metric("Templates", len(templates))
-    col3.metric("Detectors", 36)
-    st.caption("Navigate via sidebar → Datasets to import, Run to execute tests, Risk Explorer to review findings.")
+    m = api_get("/api/metrics/dashboard").json()
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Projects", m.get("projects", 0))
+    c2.metric("Active engagements", m.get("engagements_in_progress", 0))
+    c3.metric("Open findings", m.get("findings_open", 0),
+              delta=m.get("findings_this_month", 0),
+              delta_color="off", help="Δ = findings raised in last 30 days")
+    c4.metric("High/Critical open", m.get("findings_high_or_critical", 0))
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Runs last 7 days", m.get("runs_this_week", 0))
+    c6.metric("Active schedules", m.get("schedules_active", 0))
+    c7.metric("Datasets imported", m.get("datasets", 0))
+    c8.metric("Templates", 143)
+
+    st.divider()
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Findings by severity (open)")
+        sev = m.get("findings_by_severity", {})
+        if sev:
+            df = pd.DataFrame(
+                [{"severity": s, "count": n} for s, n in sev.items()]
+            ).sort_values("severity")
+            st.bar_chart(df.set_index("severity"))
+        else:
+            st.caption("No open findings.")
+    with right:
+        st.subheader("Findings by status")
+        st_map = m.get("findings_by_status", {})
+        if st_map:
+            df = pd.DataFrame([{"status": s, "count": n} for s, n in st_map.items()])
+            st.bar_chart(df.set_index("status"))
+        else:
+            st.caption("No findings yet.")
+
+    st.subheader("Findings trend — last 12 weeks")
+    trend = m.get("finding_trend_last_84d", [])
+    if trend:
+        df = pd.DataFrame(trend)
+        df["week"] = pd.to_datetime(df["week"])
+        st.line_chart(df.set_index("week"))
+    else:
+        st.caption("Not enough historical data yet.")
+
+    st.subheader("Top 10 risky records across all datasets")
+    top = m.get("top_risk_records", [])
+    if top:
+        df = pd.DataFrame([
+            {"record_key": r["record_key"], "score": round(r["score"], 1),
+             "detectors": ", ".join(r["detectors"])}
+            for r in top
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Run a pack + ensemble to populate this.")
 
 
 def projects_view() -> None:
