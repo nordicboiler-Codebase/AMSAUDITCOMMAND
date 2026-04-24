@@ -180,22 +180,45 @@ def start(poll_seconds: int = 30) -> None:
         log.info("Scheduler started (poll every %ss)", poll_seconds)
 
 
+_TICK_LOCK_KEY = 91347294837  # arbitrary stable int used by Postgres advisory lock
+
+
 def _tick() -> None:
+    from sqlalchemy import text
+
     db = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
-        due = list(db.execute(
-            select(Schedule).where(
-                Schedule.status == ScheduleStatus.ACTIVE,
-                Schedule.next_run_at.is_not(None),
-                Schedule.next_run_at <= now,
-            )
-        ).scalars())
-        for schedule in due:
+        # Postgres advisory lock: only one worker runs the tick at a time across
+        # all uvicorn workers / all processes sharing this DB. Non-blocking:
+        # if another worker holds the lock, we skip this cycle.
+        try:
+            acquired = db.execute(
+                text("SELECT pg_try_advisory_lock(:k)"), {"k": _TICK_LOCK_KEY}
+            ).scalar()
+        except Exception:
+            acquired = True  # non-Postgres DB (sqlite test) — just proceed
+        if not acquired:
+            return
+        try:
+            now = datetime.now(timezone.utc)
+            due = list(db.execute(
+                select(Schedule).where(
+                    Schedule.status == ScheduleStatus.ACTIVE,
+                    Schedule.next_run_at.is_not(None),
+                    Schedule.next_run_at <= now,
+                )
+            ).scalars())
+            for schedule in due:
+                try:
+                    run_schedule_once(db, schedule)
+                except Exception:
+                    log.exception("Schedule %s tick failed", schedule.id)
+        finally:
             try:
-                run_schedule_once(db, schedule)
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _TICK_LOCK_KEY})
+                db.commit()
             except Exception:
-                log.exception("Schedule %s tick failed", schedule.id)
+                pass
     finally:
         db.close()
 

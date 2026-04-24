@@ -3,16 +3,19 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
+import hashlib
+from pathlib import Path
+
 import polars as pl
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
 from backend.core.db import get_db
-from backend.core.security import get_current_user
-from backend.models import Dataset, SubledgerType, User
-from backend.services import acl, import_service, settings_store
+from backend.core.security import get_current_user, require_role
+from backend.models import AuditAction, Dataset, SubledgerType, User
+from backend.services import acl, audit_log, import_service, settings_store
 
 router = APIRouter()
 settings = get_settings()
@@ -89,6 +92,46 @@ def get_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Not found")
     acl.assert_permission(db, project_id=ds.project_id, user=user, permission=acl.Permission.VIEW)
     return _ds_out(ds)
+
+
+@router.get("/{dataset_id}/source")
+def download_source(
+    dataset_id: uuid.UUID, db: Session = Depends(get_db),
+    user: User = Depends(require_role("ADMIN")),
+) -> Response:
+    """Return the original uploaded file, decrypted on demand, with hash verification."""
+    ds = db.get(Dataset, dataset_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Not found")
+    upload_dir = get_settings().upload_dir
+    encrypted_candidates = list(upload_dir.glob(f"*_{ds.source_filename}.enc"))
+    if not encrypted_candidates:
+        raise HTTPException(status_code=410, detail="Encrypted source file no longer available")
+    enc_path = encrypted_candidates[0]
+    try:
+        ciphertext = enc_path.read_bytes()
+        plaintext = settings_store.decrypt_bytes(ciphertext)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Decryption failed: {e}") from e
+    h = hashlib.sha256(plaintext).hexdigest()
+    if h != ds.source_hash_sha256:
+        raise HTTPException(
+            status_code=500,
+            detail=f"INTEGRITY VIOLATION: decrypted hash {h} != import hash {ds.source_hash_sha256}",
+        )
+    audit_log.log_action(
+        db, user_id=user.id, action=AuditAction.EXPORT, entity_type="dataset_source",
+        entity_id=str(ds.id), project_id=ds.project_id,
+        details={"filename": ds.source_filename, "bytes": len(plaintext), "hash_ok": True},
+    )
+    db.commit()
+    return Response(
+        content=plaintext, media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{ds.source_filename}"',
+            "X-Source-SHA256": ds.source_hash_sha256,
+        },
+    )
 
 
 @router.get("/{dataset_id}/preview")
