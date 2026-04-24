@@ -1,0 +1,9 @@
+record_id,po_number,vendor_id,vendor_name,po_amount,po_date,po_type,po_notes,justification,change_type,amendment_count,gr_amount,invoice_amount,has_invoice,has_quotes
+R0001,PO-5001,V01,Acme Supplies LLC,9500.00,2025-03-03,standard,regular supplies order,,none,0,9500.00,9500.00,true,true
+R0002,PO-5002,V01,Acme Supplies LLC,9800.00,2025-03-04,standard,regular supplies order,,none,0,9800.00,9800.00,true,true
+R0003,PO-5003,V01,Acme Supplies LLC,9750.00,2025-03-05,standard,regular supplies order,,none,0,9750.00,9750.00,true,true
+R0004,PO-5004,V02,Gulf Trading Co,75000.00,2025-03-10,emergency,urgent emergency order single source,sole source - only supplier,value_increase,3,75000.00,85000.00,true,false
+R0005,PO-5005,V03,Tech Innovations FZ,35000.00,2025-03-15,standard,software licence,,none,0,,35000.00,true,true
+R0006,PO-5006,V04,Quick Logistics,12000.00,2025-03-20,standard,logistics services,,none,0,12000.00,,false,true
+R0007,PO-5007,V05,Mystery Vendor,150000.00,2025-03-25,standard,consulting services,exclusive sole source partnership,none,1,0,150000.00,true,false
+R0008,PO-5001,V06,Duplicate PO Vendor,50000.00,2025-03-28,standard,duplicate po number,,none,0,50000.00,50000.00,true,true

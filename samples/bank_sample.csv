@@ -1,0 +1,10 @@
+record_id,bank_account,check_number,transaction_date,deposit_date,issue_date,amount,charge_amount,status,user_id,from_account,to_account,description
+R0001,ACC-001,5001,2025-03-03,,2025-03-03,15000.00,25.00,cleared,user01,ACC-001,ACC-EXT,supplier payment
+R0002,ACC-001,5002,2025-03-05,,2025-03-05,8500.00,0.00,cleared,user01,ACC-001,ACC-EXT,rent payment
+R0003,ACC-001,5003,2025-01-15,,2025-01-15,42000.00,0.00,uncleared,user02,ACC-001,ACC-EXT,long-outstanding cheque
+R0004,ACC-001,5005,2025-03-10,,2025-03-10,1200.00,0.00,voided,user02,ACC-001,ACC-EXT,voided duplicate
+R0005,ACC-001,5006,2025-03-15,,2025-03-15,25000.00,15.00,cleared,user01,ACC-001,ACC-002,transfer to savings
+R0006,ACC-002,5007,2025-03-16,,2025-03-16,25000.00,15.00,cleared,user01,ACC-002,ACC-001,round-trip reversal
+R0007,ACC-001,5008,2025-03-22,2025-03-15,,5000.00,0.00,in_transit,user03,ACC-EXT,ACC-001,long deposit in transit
+R0008,ACC-001,5009,2025-03-29,,2025-03-29,3500.00,450.00,cleared,user02,ACC-001,ACC-EXT,weekend FX charge outlier
+R0009,ACC-001,5001,2025-03-30,,2025-03-30,4500.00,0.00,cleared,user01,ACC-001,ACC-EXT,duplicate cheque number
