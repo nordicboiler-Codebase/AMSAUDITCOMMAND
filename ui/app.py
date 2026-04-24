@@ -164,8 +164,8 @@ def sidebar() -> str:
         page = st.radio(
             "Navigate",
             ["Dashboard", "Projects", "Datasets", "Templates", "Packs", "Run",
-             "Risk Explorer", "Test Runs", "Audit Log", "Template Editor", "Library",
-             "Admin", "Settings"],
+             "Risk Explorer", "Findings", "Test Runs", "Audit Log", "Template Editor",
+             "Library", "Admin", "Settings"],
         )
         st.divider()
         if st.button("Sign out"):
@@ -499,6 +499,102 @@ def library_view() -> None:
                 st.json(d.json())
 
 
+def findings_view() -> None:
+    st.header("Findings Register")
+    if not st.session_state.get("project_id"):
+        st.warning("Select an active project in the sidebar first.")
+        return
+    pid = st.session_state["project_id"]
+
+    cols = st.columns(3)
+    status_filter = cols[0].selectbox("Status", [
+        "", "DRAFT", "UNDER_REVIEW", "CONFIRMED", "FALSE_POSITIVE",
+        "REMEDIATED", "ACCEPTED_RISK", "CARRIED_FORWARD",
+    ])
+    severity_filter = cols[1].selectbox("Severity", ["", "LOW", "MEDIUM", "HIGH", "CRITICAL"])
+    params: dict[str, Any] = {"project_id": pid}
+    if status_filter:
+        params["status"] = status_filter
+    if severity_filter:
+        params["severity"] = severity_filter
+
+    rows = api_get("/api/findings", params=params).json()
+    if rows:
+        df = pd.DataFrame([
+            {"code": r["code"], "title": r["title"], "severity": r["severity"],
+             "status": r["status"], "risk": r.get("risk_score"),
+             "due": r.get("due_date"), "records": len(r["record_keys"])}
+            for r in rows
+        ])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No findings yet.")
+
+    with st.expander("➕ Create finding (maker)"):
+        with st.form("new_finding"):
+            title = st.text_input("Title")
+            description = st.text_area("Description")
+            severity = st.selectbox("Severity", ["LOW", "MEDIUM", "HIGH", "CRITICAL"], index=1)
+            dataset_id = st.text_input("Dataset ID (optional)", value=st.session_state.get("dataset_id", ""))
+            record_keys_str = st.text_input("Record keys (comma-separated)", value="")
+            templates_str = st.text_input("Linked template codes (comma-separated)", value="")
+            tags_str = st.text_input("Tags (comma-separated)", value="")
+            due = st.date_input("Due date", value=None)
+            if st.form_submit_button("Create"):
+                body = {
+                    "project_id": pid, "title": title, "description": description,
+                    "severity": severity,
+                    "record_keys": [x.strip() for x in record_keys_str.split(",") if x.strip()],
+                    "linked_template_codes": [x.strip() for x in templates_str.split(",") if x.strip()],
+                    "tags": [x.strip() for x in tags_str.split(",") if x.strip()],
+                }
+                if dataset_id:
+                    body["dataset_id"] = dataset_id
+                if due:
+                    body["due_date"] = due.isoformat()
+                r = api_post("/api/findings", json=body)
+                if r.status_code == 200:
+                    st.success(f"Created {r.json()['code']}")
+                    st.rerun()
+                else:
+                    st.error(r.text)
+
+    with st.expander("🔍 Inspect / transition / comment (checker)"):
+        code = st.text_input("Finding code to inspect (e.g. F-2026-00001)")
+        if code:
+            match = next((r for r in rows if r["code"] == code), None)
+            if not match:
+                st.warning("Not found in current filter")
+                return
+            st.json(match)
+            cols = st.columns(2)
+            next_status = cols[0].selectbox("Transition to", [
+                "UNDER_REVIEW", "CONFIRMED", "FALSE_POSITIVE",
+                "REMEDIATED", "ACCEPTED_RISK", "CARRIED_FORWARD", "DRAFT",
+            ])
+            signoff = cols[1].text_input("Review comment (required for checker transitions)")
+            if st.button("Apply transition"):
+                r = api_post(
+                    f"/api/findings/{match['id']}/transition",
+                    json={"status": next_status, "comment": signoff or None},
+                )
+                if r.status_code == 200:
+                    st.success(f"Transitioned to {next_status}")
+                    st.rerun()
+                else:
+                    st.error(r.text)
+
+            st.markdown("**Comments**")
+            comments = api_get(f"/api/findings/{match['id']}/comments").json()
+            for c in comments:
+                mark = "✅ sign-off" if c["is_review_signoff"] else "💬"
+                st.markdown(f"{mark} *{c['created_at'][:19]}* — {c['body']}")
+            new_comment = st.text_area("Add comment", key=f"c_{match['id']}")
+            if st.button("Post comment", key=f"btn_{match['id']}") and new_comment.strip():
+                api_post(f"/api/findings/{match['id']}/comments", json={"body": new_comment})
+                st.rerun()
+
+
 def admin_view() -> None:
     st.header("Admin")
     if st.session_state.get("user", {}).get("role") != "ADMIN":
@@ -787,6 +883,7 @@ def main() -> None:
         "Packs": packs_view,
         "Run": run_view,
         "Risk Explorer": risk_view,
+        "Findings": findings_view,
         "Test Runs": runs_view,
         "Audit Log": audit_log_view,
         "Template Editor": template_editor_view,
