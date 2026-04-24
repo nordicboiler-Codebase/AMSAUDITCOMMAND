@@ -48,13 +48,56 @@ def api_post(path: str, **kwargs):
         return c.post(path, **kwargs)
 
 
+def _fetch_me_with_token(token: str) -> dict | None:
+    me = httpx.get(
+        f"{API_BASE}/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=15.0,
+    )
+    return me.json() if me.status_code == 200 else None
+
+
 def login_view() -> None:
+    # Handle SSO redirect: /?sso_token=<jwt>
+    params = st.query_params
+    if params.get("sso_token"):
+        token = params["sso_token"]
+        user = _fetch_me_with_token(token)
+        if user:
+            st.session_state["token"] = token
+            st.session_state["user"] = user
+            st.query_params.clear()
+            st.rerun()
+        else:
+            st.error("SSO succeeded but profile fetch failed.")
+            st.query_params.clear()
+
     st.title("TechSource Audit Analytics")
     st.caption("Internal audit data analytics platform")
+
+    try:
+        sso_status = httpx.get(f"{API_BASE}/api/settings/sso/status", timeout=5.0).json()
+    except Exception:
+        sso_status = {"enabled": False}
+
+    if sso_status.get("enabled"):
+        label_map = {
+            "azure_ad": "🪟 Sign in with Microsoft",
+            "google": "🅶 Sign in with Google",
+            "okta": "🔐 Sign in with Okta",
+            "generic_oidc": "🔐 Sign in with SSO",
+        }
+        label = label_map.get(sso_status.get("provider"), "🔐 Sign in with SSO")
+        st.link_button(label, f"{API_BASE}/api/auth/sso/login", use_container_width=True)
+        st.markdown(
+            "<div style='text-align:center;color:#888;margin:12px 0;'>— or —</div>",
+            unsafe_allow_html=True,
+        )
+
     with st.form("login"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Sign in")
+        submit = st.form_submit_button("Sign in with password")
     if submit:
         r = httpx.post(
             f"{API_BASE}/api/auth/token",
@@ -63,13 +106,9 @@ def login_view() -> None:
         )
         if r.status_code == 200:
             st.session_state["token"] = r.json()["access_token"]
-            me = httpx.get(
-                f"{API_BASE}/api/auth/me",
-                headers={"Authorization": f"Bearer {st.session_state['token']}"},
-                timeout=15.0,
-            )
-            if me.status_code == 200:
-                st.session_state["user"] = me.json()
+            user = _fetch_me_with_token(st.session_state["token"])
+            if user:
+                st.session_state["user"] = user
             st.rerun()
         else:
             st.error(f"Login failed: {r.text}")
