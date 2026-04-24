@@ -18,6 +18,7 @@ dependencies = [
   "weasyprint>=61.0",
   "python-jose[cryptography]>=3.3",
   "passlib[bcrypt]>=1.7",
+  "bcrypt<4.1",
   "pydantic>=2.6",
   "pydantic-settings>=2.2",
   "rapidfuzz>=3.6",

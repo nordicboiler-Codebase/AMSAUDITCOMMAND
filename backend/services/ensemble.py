@@ -50,11 +50,14 @@ def compute_ensemble(
             continue
         mn = min(raw_scores)
         mx = max(raw_scores)
-        rng = mx - mn if mx > mn else 1.0
+        rng = mx - mn
         keys = scores_df["record_key"].to_list()
         reasons = scores_df["reason"].to_list()
         for k, s, reason in zip(keys, raw_scores, reasons):
-            norm = (s - mn) / rng if rng > 0 else 1.0
+            if rng > 0:
+                norm = (s - mn) / rng
+            else:
+                norm = 1.0 if s > 0 else 0.0
             per_record[str(k)].append({
                 "detector_name": run.detector_name,
                 "template_code": run.template_code,
@@ -65,11 +68,11 @@ def compute_ensemble(
                 "reason": reason,
             })
 
+    max_possible_weight = total_weight if total_weight > 0 else 1.0
     risk_rows: list[RiskScore] = []
     for key, contribs in per_record.items():
-        wsum = sum(c["weight"] for c in contribs) or 1.0
         weighted = sum(c["normalised_signal"] * c["weight"] for c in contribs)
-        score = min(100.0, (weighted / wsum) * 100.0)
+        score = min(100.0, (weighted / max_possible_weight) * 100.0)
         risk_rows.append(
             RiskScore(
                 dataset_id=dataset_id,
