@@ -425,19 +425,60 @@ def dashboard_view() -> None:
 
 
 def projects_view() -> None:
-    st.header(t("nav.projects"))
-    with st.expander("Create project"):
+    section_header(
+        t("nav.projects"),
+        "An audit project scopes work to a subsidiary or cross-entity theme.",
+    )
+    subs = api_get("/api/subsidiaries").json() if st.session_state.get("token") else []
+    sub_map = {s["code"]: s for s in subs}
+
+    with st.expander("➕ New project"):
         with st.form("new_project"):
-            name = st.text_input("Name")
+            name = st.text_input("Name", placeholder="Q2 2026 AP Review — SUB-001")
             description = st.text_area("Description")
-            subsidiary_code = st.text_input("Subsidiary code")
-            if st.form_submit_button("Create"):
-                api_post("/api/projects", json={
-                    "name": name, "description": description, "subsidiary_code": subsidiary_code
+            sub_codes = [""] + [s["code"] for s in subs]
+            subsidiary_code = st.selectbox(
+                "Subsidiary", sub_codes,
+                format_func=lambda c: (f"{c} — {sub_map[c]['name']}" if c else "(none)"),
+            )
+            if st.form_submit_button("Create project"):
+                r = api_post("/api/projects", json={
+                    "name": name, "description": description,
+                    "subsidiary_code": subsidiary_code or None,
                 })
-                st.rerun()
+                if r.status_code == 200:
+                    st.toast("Project created", icon="✅")
+                    st.rerun()
+                else:
+                    show_error(r)
+
     rows = api_get("/api/projects").json()
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    if not rows:
+        empty_state("🗂️", "No projects yet",
+                    "Create your first audit project to start importing data and running packs.")
+        return
+
+    cols = st.columns(3)
+    for i, p in enumerate(rows):
+        sub = sub_map.get(p.get("subsidiary_code"), {})
+        with cols[i % 3]:
+            st.markdown(
+                f"""
+                <div class="ts-card" style="min-height: 140px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:600; color:#0b2a4a;">{p['name']}</div>
+                    <span class="ts-badge muted">{p.get('status', 'ACTIVE')}</span>
+                  </div>
+                  <div style="color:#6b7684; font-size:0.8rem; margin-top:4px;">
+                    {sub.get('name', p.get('subsidiary_code') or 'No subsidiary')}
+                  </div>
+                  <div style="color:#6b7684; font-size:0.82rem; margin-top:10px;">
+                    {p.get('description') or ''}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 SAMPLE_FILES = {
@@ -453,9 +494,13 @@ SAMPLE_FILES = {
 
 
 def datasets_view() -> None:
-    st.header(t("datasets.title"))
+    section_header(
+        t("datasets.title"),
+        "Raw source data, hashed on import and stored Fernet-encrypted at rest.",
+    )
     if not st.session_state.get("project_id"):
-        st.warning("Select an active project in the sidebar first.")
+        empty_state("💾", "No active project",
+                    "Datasets are scoped to a project — pick one in the sidebar first.")
         return
 
     with st.expander("📥 Need a sample? Download a ready-made CSV", expanded=False):
@@ -713,10 +758,14 @@ def run_view() -> None:
 
 
 def risk_view() -> None:
-    st.header(t("risk.title"))
+    section_header(
+        t("risk.title"),
+        "Every record, scored 0–100 with per-detector explainability. Sort, filter, drill down.",
+    )
     dsid = st.session_state.get("dataset_id")
     if not dsid:
-        st.warning("Set active dataset ID in the sidebar.")
+        empty_state("🎯", "No active dataset",
+                    "Pick a dataset on the Datasets page to score it.")
         return
 
     col_a, col_b = st.columns([3, 1])
@@ -841,11 +890,40 @@ def library_view() -> None:
 
 
 def findings_view() -> None:
-    st.header(t("findings.title"))
+    section_header(
+        t("findings.title"),
+        "Every flagged issue. Maker creates DRAFT; a reviewer (≠ maker) confirms/closes.",
+    )
     if not st.session_state.get("project_id"):
         st.warning("Select an active project in the sidebar first.")
         return
     pid = st.session_state["project_id"]
+
+    # Status counts
+    all_rows = api_get("/api/findings", params={"project_id": pid, "limit": 500}).json()
+    counts = {s: 0 for s in ["DRAFT", "UNDER_REVIEW", "CONFIRMED", "FALSE_POSITIVE",
+                              "REMEDIATED", "ACCEPTED_RISK", "CARRIED_FORWARD"]}
+    for r in all_rows:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    sev_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0}
+    for r in all_rows:
+        sev_counts[r["severity"]] = sev_counts.get(r["severity"], 0) + 1
+
+    c = st.columns(4)
+    with c[0]: metric_card("Critical", sev_counts["CRITICAL"], icon="🚨", accent=COLORS["critical"])
+    with c[1]: metric_card("High", sev_counts["HIGH"], icon="⚠️", accent=COLORS["high"])
+    with c[2]: metric_card("Medium", sev_counts["MEDIUM"], icon="🔶", accent=COLORS["medium"])
+    with c[3]: metric_card("Low", sev_counts["LOW"], icon="🔵", accent=COLORS["low"])
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    sc = st.columns(7)
+    labels = [("Draft", "DRAFT"), ("Under review", "UNDER_REVIEW"),
+              ("Confirmed", "CONFIRMED"), ("False positive", "FALSE_POSITIVE"),
+              ("Remediated", "REMEDIATED"), ("Accepted", "ACCEPTED_RISK"),
+              ("Carried fwd", "CARRIED_FORWARD")]
+    for i, (lab, key) in enumerate(labels):
+        with sc[i]:
+            metric_card(lab, counts[key], icon="")
 
     cols = st.columns(3)
     status_filter = cols[0].selectbox("Status", [
@@ -1056,9 +1134,13 @@ def subsidiaries_view() -> None:
 
 
 def engagements_view() -> None:
-    st.header(t("engagements.title"))
+    section_header(
+        t("engagements.title"),
+        "Group the datasets, pack runs, and findings for a single audit period.",
+    )
     if not st.session_state.get("project_id"):
-        st.warning("Select an active project in the sidebar first.")
+        empty_state("📁", "No active project",
+                    "Engagements live under a project. Pick one in the sidebar.")
         return
     pid = st.session_state["project_id"]
 
@@ -1188,9 +1270,13 @@ def engagements_view() -> None:
 
 
 def schedules_view() -> None:
-    st.header(t("schedules.title"))
+    section_header(
+        t("schedules.title"),
+        "Cron-driven runs that execute packs/templates and alert on risk thresholds.",
+    )
     if not st.session_state.get("project_id"):
-        st.warning("Select an active project in the sidebar first.")
+        empty_state("⏰", "No active project",
+                    "Schedules belong to a project — pick one in the sidebar.")
         return
     pid = st.session_state["project_id"]
 
