@@ -377,7 +377,7 @@ docker-compose up -d app`}
       </div>
 
       <div className="text-[11px] text-muted-foreground">
-        Keys are encrypted with the platform Fernet keychain at rest. Every Claude call
+        Keys are encrypted with the platform Fernet keychain at rest. Every AI call
         is logged to the tamper-evident audit chain (provider, model, prompt outcome,
         chosen template). Rate limited to 30 requests/minute/IP.
       </div>

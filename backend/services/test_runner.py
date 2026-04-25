@@ -14,6 +14,7 @@ from backend.detectors.base import hash_dataframe
 from backend.models import AuditAction, Dataset, TestRun
 from backend.models.enums import RunStatus
 from backend.services import audit_log
+from backend.services.import_service import resolve_parquet_path
 from backend.templates import catalog as tpl_catalog
 
 settings = get_settings()
@@ -35,7 +36,7 @@ def run_detector(
         raise ValueError(f"Dataset not found: {dataset_id}")
     detector = det_catalog.get(detector_name)
 
-    df = pl.read_parquet(dataset.parquet_path)
+    df = pl.read_parquet(resolve_parquet_path(dataset.parquet_path))
     input_hash = hash_dataframe(df)
 
     # Integrity check: the Parquet we ingest must still match the manifest hash

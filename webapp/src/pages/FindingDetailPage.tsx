@@ -162,7 +162,7 @@ export function FindingDetailPage() {
                   variant="outline" size="sm"
                   onClick={() => draftNarrative.mutate()}
                   disabled={draftNarrative.isPending}
-                  title="Have Claude draft an audit-style write-up for this finding"
+                  title="Have AI draft an audit-style write-up for this finding"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-accent" />
                   {draftNarrative.isPending ? "Drafting…" : "AI draft"}

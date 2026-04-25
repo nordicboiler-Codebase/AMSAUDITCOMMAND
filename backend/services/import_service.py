@@ -172,4 +172,28 @@ def import_dataset(
 
 
 def load_dataset_df(parquet_path: str | Path) -> pl.DataFrame:
-    return pl.read_parquet(parquet_path)
+    return pl.read_parquet(resolve_parquet_path(parquet_path))
+
+
+def resolve_parquet_path(stored: str | Path) -> Path:
+    """Return a valid path for a parquet file, tolerating relocations.
+
+    Datasets imported in one environment (host filesystem) and used from
+    another (Docker container, different DATA_DIR, etc.) end up with an
+    absolute path in the DB that no longer resolves. Fall back to the
+    current parquet_dir using just the filename if needed.
+    """
+    p = Path(stored)
+    if p.exists():
+        return p
+    # Try current parquet_dir + same filename
+    fallback = settings.parquet_dir / p.name
+    if fallback.exists():
+        return fallback
+    # Surface both paths in the error so the operator can see what was tried.
+    raise FileNotFoundError(
+        f"Parquet not found at stored path {p} or fallback {fallback}. "
+        f"DATA_DIR={settings.data_dir}. "
+        "If you moved environments, re-import the dataset or copy the parquet "
+        "file to the new parquet_dir."
+    )

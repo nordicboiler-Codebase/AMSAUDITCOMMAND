@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import get_settings
 from backend.models import AuditAction, Dataset, Finding, TestRun
 from backend.services import audit_log, llm
+from backend.services.import_service import resolve_parquet_path
 from backend.templates import catalog as tpl_catalog
 
 settings = get_settings()
@@ -74,13 +75,19 @@ def _build_catalog_block(db: Session, subledger) -> str:
 
 
 def _dataset_context(dataset: Dataset) -> str:
-    df = pl.read_parquet(dataset.parquet_path).head(10)
-    return (
+    head = (
         f"Dataset: {dataset.name} (subledger={dataset.subledger_type.value}, "
         f"records={dataset.record_count})\n"
         f"Schema: {json.dumps(dataset.schema_json)}\n"
-        f"Sample rows:\n{df.write_csv()}"
     )
+    # The parquet may have been imported in a different environment with a
+    # different absolute path. Fall back gracefully — schema alone is still
+    # useful for template selection.
+    try:
+        df = pl.read_parquet(resolve_parquet_path(dataset.parquet_path)).head(10)
+        return head + f"Sample rows:\n{df.write_csv()}"
+    except (FileNotFoundError, OSError) as e:
+        return head + f"Sample rows: <unavailable — {e}>"
 
 
 def nl_to_template(

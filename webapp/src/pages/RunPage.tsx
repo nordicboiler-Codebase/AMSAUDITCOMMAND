@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Play, Search, Sparkles, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { AiOffBanner, AiStatusBadge } from "@/components/ui/ai-status";
+import { AiOffBanner, AiStatusBadge, useAiStatus } from "@/components/ui/ai-status";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
@@ -179,13 +179,17 @@ function AiTab({
   onPickTemplate: (code: string, params: Record<string, unknown>) => void;
 }) {
   const { toast } = useToast();
+  const { data: aiStatus } = useAiStatus();
   const [question, setQuestion] = useState("");
+
+  const providerName =
+    aiStatus?.providers?.find((p) => p.provider === aiStatus.active)?.label?.split(" (")[0] || "AI";
 
   const ask = useMutation({
     mutationFn: () => api.post<NlqResult>(
       `/api/datasets/${datasetId}/nlq`, { question },
     ),
-    onError: (e) => toast({ kind: "error", title: "Claude couldn't help", description: (e as Error).message }),
+    onError: (e) => toast({ kind: "error", title: "AI couldn't help", description: (e as Error).message }),
   });
 
   const suggest = useMutation({
@@ -200,7 +204,7 @@ function AiTab({
     return (
       <SectionCard>
         <div className="text-sm text-muted-foreground py-10 text-center">
-          Pick a dataset above to ask Claude what to test.
+          Pick a dataset above to ask the AI what to test.
         </div>
       </SectionCard>
     );
@@ -210,8 +214,8 @@ function AiTab({
     <div className="space-y-4">
       <AiOffBanner />
       <SectionCard
-        title="Ask Claude in plain English"
-        description="Describe what you want to test — Claude will pick the best template from the catalog and pre-fill its parameters."
+        title="Ask in plain English"
+        description={`Describe what you want to test — ${providerName} will pick the best template from the catalog and pre-fill its parameters.`}
         actions={<AiStatusBadge />}
       >
         <div className="flex gap-2">
@@ -268,7 +272,7 @@ function AiTab({
 
         {result && (result.error || !result.template_code) && (
           <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            Claude couldn't pick a template.{result.error ? ` ${result.error}` : ""}
+            {providerName} couldn't pick a template.{result.error ? ` ${result.error}` : ""}
             {result.raw && (
               <pre className="text-[11px] font-mono mt-2 max-h-40 overflow-auto">{result.raw}</pre>
             )}
@@ -277,8 +281,8 @@ function AiTab({
       </SectionCard>
 
       <SectionCard
-        title="Or — let Claude suggest the highest-value tests"
-        description="Claude looks at the dataset's schema + sample rows and ranks the most useful templates to run."
+        title={`Or — let ${providerName} suggest the highest-value tests`}
+        description={`${providerName} looks at the dataset's schema + sample rows and ranks the most useful templates to run.`}
         actions={
           <Button
             variant="outline" size="sm"
@@ -292,7 +296,7 @@ function AiTab({
       >
         {suggestions.length === 0 ? (
           <div className="text-sm text-muted-foreground italic py-4">
-            Click "Suggest" to see Claude's top picks for this dataset.
+            Click "Suggest" to see {providerName}'s top picks for this dataset.
           </div>
         ) : (
           <div className="space-y-2">

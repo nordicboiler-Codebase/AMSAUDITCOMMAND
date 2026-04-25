@@ -78,7 +78,7 @@ export function TestRunDetailPage() {
                   variant="outline"
                   onClick={() => draftNarrative.mutate()}
                   disabled={draftNarrative.isPending}
-                  title="Have Claude draft an audit-style narrative for this run"
+                  title="Have AI draft an audit-style narrative for this run"
                 >
                   <Sparkles className="h-4 w-4 text-accent" />
                   {draftNarrative.isPending ? "Drafting…" : "AI draft"}
@@ -137,7 +137,7 @@ export function TestRunDetailPage() {
             {narrative}
           </div>
           <div className="mt-3 text-[11px] text-muted-foreground italic">
-            Draft by Claude — review before publishing. Logged to the audit chain.
+            AI draft — review before publishing. Logged to the audit chain.
           </div>
         </SectionCard>
       )}
