@@ -142,7 +142,7 @@ function ScheduleRow({ schedule, onChange }: { schedule: Schedule; onChange: () 
     mutationFn: () => api.delete(`/api/schedules/${schedule.id}`),
     onSuccess: onChange,
   });
-  const { data: history = [] } = useQuery({
+  const { data: history = [], isLoading: historyLoading } = useQuery({
     queryKey: ["schedule-runs", schedule.id],
     queryFn: () => api.get<ScheduleRunRow[]>(`/api/schedules/${schedule.id}/runs`),
     enabled: expanded,
@@ -205,7 +205,9 @@ function ScheduleRow({ schedule, onChange }: { schedule: Schedule; onChange: () 
       {expanded && (
         <tr>
           <td colSpan={6} className="bg-secondary/20 px-6 py-3">
-            {history.length === 0 ? (
+            {historyLoading ? (
+              <div className="text-xs text-muted-foreground italic">Loading run history…</div>
+            ) : history.length === 0 ? (
               <div className="text-xs text-muted-foreground italic">
                 No runs recorded yet. {runNow.isPending ? "Running…" : "Click ▶ to run now."}
               </div>

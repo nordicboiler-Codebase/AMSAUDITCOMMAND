@@ -60,7 +60,7 @@ export function PacksPage() {
       { dataset_id: datasetId, pack_code: selected!.code, template_overrides: {} },
     ),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["runs"] });
+      qc.invalidateQueries({ queryKey: ["all-runs"] });
       qc.invalidateQueries({ queryKey: ["pack-runs"] });
       toast({
         kind: "success",

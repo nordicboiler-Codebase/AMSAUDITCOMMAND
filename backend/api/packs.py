@@ -28,15 +28,8 @@ def list_packs(subledger: SubledgerType | None = None, db: Session = Depends(get
     return [_out(p) for p in pack_svc.list_packs(db, subledger=subledger)]
 
 
-@router.get("/{code}")
-def get_pack(code: str, db: Session = Depends(get_db),
-             _u: User = Depends(get_current_user)) -> dict:
-    try:
-        return _out(pack_svc.get_pack(db, code))
-    except pack_svc.PackError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-
-
+# NB: /runs and /runs/{id} MUST be declared before /{code} so FastAPI's
+# path matcher doesn't treat "runs" as a pack code.
 @router.get("/runs")
 def list_pack_runs(
     project_id: uuid.UUID | None = None,
@@ -132,6 +125,15 @@ def run_pack(body: PackRunIn, db: Session = Depends(get_db),
     except pack_svc.PackError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"pack_run_id": str(run.id), "summary": run.summary, "status": run.status.value}
+
+
+@router.get("/{code}")
+def get_pack(code: str, db: Session = Depends(get_db),
+             _u: User = Depends(get_current_user)) -> dict:
+    try:
+        return _out(pack_svc.get_pack(db, code))
+    except pack_svc.PackError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 def _out(p: Pack) -> dict:

@@ -63,7 +63,13 @@ export function PackRunDetailPage() {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge status={run.status} />
-            <Button variant="outline" size="sm" onClick={() => navigate(`/datasets`)}>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => {
+                localStorage.setItem("ts_active_dataset", run.dataset_id);
+                navigate(`/datasets`);
+              }}
+            >
               <Database className="h-4 w-4" /> Open dataset
             </Button>
             {run.ensemble_run_id && (
