@@ -190,8 +190,88 @@ class SameSameDifferentDetector:
         )
 
 
+@dataclass
+class FuzzyJoinDetector:
+    """Fuzzy match between two name columns within the same dataset (e.g. a
+    pre-joined view containing both employee_name and vendor_name).
+    Common use case: employee↔vendor collusion, customer↔related-party.
+    Mirrors ACL's FUZZYJOIN command."""
+    name: str = "fuzzy_join"
+    category: DetectorCategory = DetectorCategory.RELATIONAL
+    description: str = "Fuzzy match between two name columns (e.g. employee↔vendor)"
+    default_weight: float = 1.4
+    default_params: dict[str, Any] = field(
+        default_factory=lambda: {
+            "left_field": "vendor_name",
+            "right_field": "employee_name",
+            "min_similarity": 0.85,
+            "min_token_length": 3,
+        }
+    )
+    supported_subledgers: list[SubledgerType] | None = None
+
+    def run(self, df: pl.DataFrame, params: dict[str, Any]) -> DetectorResult:
+        lf = params.get("left_field", "")
+        rf = params.get("right_field", "")
+        min_sim = float(params.get("min_similarity", 0.85)) * 100
+        min_tok = int(params.get("min_token_length", 3))
+        if lf not in df.columns or rf not in df.columns:
+            return DetectorResult(flagged=df.head(0),
+                                  summary={"flagged_count": 0, "reason": "field_not_found"})
+        df2 = add_key_column(df)
+        left = [str(v).strip() for v in df2[lf].to_list()]
+        right = [str(v).strip() for v in df2[rf].to_list()]
+        keys = df2["_record_key"].to_list()
+        distinct_left: dict[str, list[int]] = {}
+        for i, val in enumerate(left):
+            if val and len(val) >= min_tok:
+                distinct_left.setdefault(val, []).append(i)
+        flagged_idx: set[int] = set()
+        reasons: dict[str, str] = {}
+        for j, rv in enumerate(right):
+            if not rv or len(rv) < min_tok:
+                continue
+            best_sim = 0.0
+            best_match = ""
+            for lv in distinct_left:
+                sim = fuzz.token_set_ratio(lv, rv)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_match = lv
+                    if best_sim >= 100:
+                        break
+            if best_sim >= min_sim and best_match.lower() != rv.lower():
+                flagged_idx.add(j)
+                reasons[keys[j]] = (
+                    f"{rf}={rv!r} matches {lf}={best_match!r} ({best_sim:.0f}%)"
+                )
+                for k in distinct_left.get(best_match, []):
+                    flagged_idx.add(k)
+                    reasons.setdefault(
+                        keys[k],
+                        f"{lf}={best_match!r} matches {rf}={rv!r} ({best_sim:.0f}%)",
+                    )
+        if not flagged_idx:
+            return DetectorResult(flagged=df.head(0),
+                                  summary={"flagged_count": 0,
+                                           "min_similarity": min_sim / 100})
+        mask = pl.Series(values=[i in flagged_idx for i in range(df2.height)])
+        flagged = df2.filter(mask)
+        flagged_keys = flagged["_record_key"].to_list()
+        scores = [PerRecordScore(k, 1.0, reasons.get(k, "fuzzy match"))
+                  for k in flagged_keys]
+        return DetectorResult(
+            flagged=flagged,
+            summary={"flagged_count": flagged.height,
+                     "min_similarity": min_sim / 100,
+                     "left_field": lf, "right_field": rf},
+            per_record_scores=scores,
+        )
+
+
 register(DuplicatesDetector())
 register(FuzzyDuplicatesDetector())
+register(FuzzyJoinDetector())
 register(GapsDetector())
 register(SequenceOrderDetector())
 register(SameSameDifferentDetector())
