@@ -29,10 +29,11 @@ PROVIDERS = ("anthropic", "openai", "gemini")
 DEFAULT_MODEL = {
     "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-4o-mini",
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-2.5-flash",
 }
 
 # Suggested models surfaced in the UI dropdown (for guidance only).
+# Note: gemini-1.5-* family was deprecated by Google late 2025; do not list.
 MODEL_CHOICES = {
     "anthropic": [
         "claude-sonnet-4-6",
@@ -40,7 +41,24 @@ MODEL_CHOICES = {
         "claude-haiku-4-5-20251001",
     ],
     "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"],
-    "gemini": ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro"],
+    "gemini": [
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ],
+}
+
+# Models we know Google has retired — silently rewrite to DEFAULT_MODEL.
+DEPRECATED_MODEL_REWRITES = {
+    "gemini": {
+        "gemini-1.5-flash": "gemini-2.5-flash",
+        "gemini-1.5-pro": "gemini-2.5-pro",
+        "gemini-1.5-flash-002": "gemini-2.5-flash",
+        "gemini-1.5-pro-002": "gemini-2.5-pro",
+        "gemini-2.0-flash-exp": "gemini-2.0-flash",
+    },
 }
 
 PROVIDER_LABEL = {
@@ -140,10 +158,14 @@ def _sdk_installed(provider: str) -> bool:
 
 
 def _load_provider_config(db: Session, provider: str) -> dict[str, Any]:
-    """Read stored config for a provider (decrypts api_key)."""
+    """Read stored config for a provider (decrypts api_key, rewrites
+    deprecated model names so retired Gemini 1.5.x configs don't 404)."""
     raw = settings_store.get_setting(db, CATEGORY, provider) or {}
     if raw.get("api_key"):
         raw["api_key"] = settings_store.decrypt_secret(raw["api_key"])
+    rewrites = DEPRECATED_MODEL_REWRITES.get(provider, {})
+    if raw.get("model") in rewrites:
+        raw["model"] = rewrites[raw["model"]]
     return raw
 
 
@@ -157,12 +179,16 @@ def _save_provider_config(
         encrypted_key = existing.get("api_key", "")
     else:
         encrypted_key = settings_store.encrypt_secret(api_key) if api_key else ""
+    final_model = model or DEFAULT_MODEL[provider]
+    rewrites = DEPRECATED_MODEL_REWRITES.get(provider, {})
+    if final_model in rewrites:
+        final_model = rewrites[final_model]
     settings_store.upsert_setting(
         db, category=CATEGORY, key=provider,
         value={
             "enabled": bool(enabled),
             "api_key": encrypted_key,
-            "model": model or DEFAULT_MODEL[provider],
+            "model": final_model,
         },
         is_secret=True,
         updated_by=updated_by,
