@@ -23,6 +23,8 @@ export function FindingsPage() {
   const initialSeverity = (searchParams.get("severity") || "").split(",")[0];
   const initialStatus = (searchParams.get("status") || "").split(",")[0];
   const subsidiaryCode = searchParams.get("subsidiary") || "";
+  const tag = searchParams.get("tag") || "";
+  const datasetFilter = searchParams.get("dataset") || "";
   const [status, setStatus] = useState(initialStatus);
   const [severity, setSeverity] = useState(initialSeverity);
   const [open, setOpen] = useState(false);
@@ -36,7 +38,7 @@ export function FindingsPage() {
   // When filtering by subsidiary, scope is group-wide; ignore activeProjectId.
   const scopeKey = subsidiaryCode ? `sub:${subsidiaryCode}` : (activeProjectId ?? "");
   const query = useQuery({
-    queryKey: ["findings", scopeKey, status, severity],
+    queryKey: ["findings", scopeKey, status, severity, tag, datasetFilter],
     queryFn: () => {
       const params = new URLSearchParams();
       if (subsidiaryCode) {
@@ -46,6 +48,8 @@ export function FindingsPage() {
       }
       if (status) params.set("status", status);
       if (severity) params.set("severity", severity);
+      if (tag) params.set("tag", tag);
+      if (datasetFilter) params.set("dataset_id", datasetFilter);
       return api.get<Finding[]>(`/api/findings?${params.toString()}`);
     },
     enabled: !!subsidiaryCode || !!activeProjectId,
@@ -77,10 +81,14 @@ export function FindingsPage() {
         description={
           subsidiaryCode
             ? `Group-scoped view — subsidiary ${subsidiaryCode}.`
-            : "Every flagged issue. Maker creates DRAFT; an independent reviewer confirms/closes."
+            : tag === "monitor"
+              ? "Auto-created by continuous monitors above their threshold."
+              : datasetFilter
+                ? "Findings linked to this dataset."
+                : "Every flagged issue. Maker creates DRAFT; an independent reviewer confirms/closes."
         }
         actions={
-          activeProjectId && !subsidiaryCode
+          activeProjectId && !subsidiaryCode && !tag && !datasetFilter
             ? <Button onClick={() => setOpen(true)}>Create finding</Button>
             : null
         }

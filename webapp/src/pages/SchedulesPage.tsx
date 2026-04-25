@@ -1,13 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Play, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
 import { api } from "@/lib/api";
+
+interface ScheduleRunRow {
+  id: string;
+  started_at?: string;
+  finished_at?: string;
+  status: string;
+  summary: {
+    pack_run_id?: string;
+    test_run_id?: string;
+    ensemble_run_id?: string;
+    templates_run?: number;
+    findings?: number;
+    max_score?: number;
+    records_scored?: number;
+    error?: string;
+  };
+  alert_sent: boolean;
+  alert_error?: string;
+}
 
 interface Schedule {
   id: string;
@@ -107,6 +126,8 @@ export function SchedulesPage() {
 }
 
 function ScheduleRow({ schedule, onChange }: { schedule: Schedule; onChange: () => void }) {
+  const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(false);
   const runNow = useMutation({
     mutationFn: () => api.post(`/api/schedules/${schedule.id}/run-now`),
     onSuccess: onChange,
@@ -121,30 +142,139 @@ function ScheduleRow({ schedule, onChange }: { schedule: Schedule; onChange: () 
     mutationFn: () => api.delete(`/api/schedules/${schedule.id}`),
     onSuccess: onChange,
   });
+  const { data: history = [] } = useQuery({
+    queryKey: ["schedule-runs", schedule.id],
+    queryFn: () => api.get<ScheduleRunRow[]>(`/api/schedules/${schedule.id}/runs`),
+    enabled: expanded,
+  });
+
+  function targetForRun(s: ScheduleRunRow["summary"]): string | null {
+    if (s.pack_run_id) return `/packs/runs/${s.pack_run_id}`;
+    if (s.test_run_id) return `/runs/${s.test_run_id}`;
+    return null;
+  }
 
   return (
-    <tr className="hover:bg-secondary/30">
-      <td className="py-2 px-3 font-medium">{schedule.name}</td>
-      <td className="py-2 px-3 font-mono text-xs">
-        {schedule.kind}: {schedule.pack_code || schedule.template_code}
-      </td>
-      <td className="py-2 px-3 font-mono text-xs">{schedule.cron_expr}</td>
-      <td className="py-2 px-3 text-xs text-muted-foreground">
-        {schedule.next_run_at ? new Date(schedule.next_run_at).toLocaleString() : "—"}
-      </td>
-      <td className="py-2 px-3"><StatusBadge status={schedule.status} /></td>
-      <td className="py-2 px-3 flex gap-1">
-        <Button variant="outline" size="sm" onClick={() => runNow.mutate()} disabled={runNow.isPending}>
-          <Play className="h-3 w-3" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => toggle.mutate()}>
-          {schedule.status === "ACTIVE" ? "Pause" : "Resume"}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => del.mutate()}>
-          <Trash2 className="h-3 w-3 text-destructive" />
-        </Button>
-      </td>
-    </tr>
+    <>
+      <tr className="hover:bg-secondary/30">
+        <td className="py-2 px-3 font-medium">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1 hover:text-accent"
+          >
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {schedule.name}
+          </button>
+        </td>
+        <td className="py-2 px-3 font-mono text-xs">
+          {schedule.kind === "PACK" ? (
+            <button
+              onClick={() => navigate(`/packs`)}
+              className="hover:text-accent"
+              title="Open pack"
+            >
+              {schedule.kind}: {schedule.pack_code}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate(`/templates?code=${encodeURIComponent(schedule.template_code || "")}`)}
+              className="hover:text-accent"
+              title="Open template"
+            >
+              {schedule.kind}: {schedule.template_code}
+            </button>
+          )}
+        </td>
+        <td className="py-2 px-3 font-mono text-xs">{schedule.cron_expr}</td>
+        <td className="py-2 px-3 text-xs text-muted-foreground">
+          {schedule.next_run_at ? new Date(schedule.next_run_at).toLocaleString() : "—"}
+        </td>
+        <td className="py-2 px-3"><StatusBadge status={schedule.status} /></td>
+        <td className="py-2 px-3 flex gap-1">
+          <Button variant="outline" size="sm" onClick={() => runNow.mutate()} disabled={runNow.isPending}>
+            <Play className="h-3 w-3" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => toggle.mutate()}>
+            {schedule.status === "ACTIVE" ? "Pause" : "Resume"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => del.mutate()}>
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </Button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={6} className="bg-secondary/20 px-6 py-3">
+            {history.length === 0 ? (
+              <div className="text-xs text-muted-foreground italic">
+                No runs recorded yet. {runNow.isPending ? "Running…" : "Click ▶ to run now."}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="eyebrow">Run history (last {history.length})</div>
+                <table className="w-full text-xs">
+                  <thead className="text-muted-foreground">
+                    <tr>
+                      <th className="text-left font-semibold py-1.5">Started</th>
+                      <th className="text-left font-semibold py-1.5">Status</th>
+                      <th className="text-left font-semibold py-1.5">Summary</th>
+                      <th className="text-left font-semibold py-1.5">Alert</th>
+                      <th className="text-right font-semibold py-1.5">Open</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {history.slice(0, 30).map((r) => {
+                      const target = targetForRun(r.summary);
+                      return (
+                        <tr
+                          key={r.id}
+                          className={`${target ? "cursor-pointer hover:bg-secondary/40" : ""}`}
+                          onClick={() => target && navigate(target)}
+                        >
+                          <td className="py-1.5 font-mono">
+                            {r.started_at ? new Date(r.started_at).toLocaleString() : "—"}
+                          </td>
+                          <td className="py-1.5"><StatusBadge status={r.status} /></td>
+                          <td className="py-1.5 text-muted-foreground">
+                            {r.summary.error ? (
+                              <span className="text-destructive">{r.summary.error}</span>
+                            ) : r.summary.templates_run !== undefined ? (
+                              <>
+                                {r.summary.templates_run} templates
+                                {r.summary.max_score !== undefined &&
+                                  ` · max ${r.summary.max_score.toFixed(1)}`}
+                              </>
+                            ) : r.summary.findings !== undefined ? (
+                              <>{r.summary.findings} findings</>
+                            ) : "—"}
+                          </td>
+                          <td className="py-1.5">
+                            {r.alert_sent ? (
+                              <span className="text-success">Sent</span>
+                            ) : r.alert_error ? (
+                              <span className="text-destructive" title={r.alert_error}>Failed</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 text-right">
+                            {target ? (
+                              <span className="text-accent">→</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

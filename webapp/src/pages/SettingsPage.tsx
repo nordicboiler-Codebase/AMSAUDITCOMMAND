@@ -1,24 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Database, Download, FileSearch, Target } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { PageHeader, SectionCard } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/lib/toast";
 
-type Tab = "sso" | "email" | "mfa" | "retention" | "siem";
+type Tab = "sso" | "email" | "mfa" | "retention" | "siem" | "bi";
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("sso");
   return (
     <>
-      <PageHeader title="Settings" description="Platform configuration — SSO, email, MFA, retention, SIEM." />
-      <div className="flex gap-1 border-b mb-5">
+      <PageHeader title="Settings" description="Platform configuration — SSO, email, MFA, retention, SIEM, BI feeds." />
+      <div className="flex gap-1 border-b mb-5 flex-wrap">
         {([
           ["sso", "SSO"], ["email", "Email"], ["mfa", "My MFA"],
           ["retention", "Data retention"], ["siem", "SIEM webhook"],
+          ["bi", "BI feeds"],
         ] as Array<[Tab, string]>).map(([k, label]) => (
           <button
             key={k} onClick={() => setTab(k)}
@@ -36,7 +40,99 @@ export function SettingsPage() {
       {tab === "mfa" && <MfaTab />}
       {tab === "retention" && <RetentionTab />}
       {tab === "siem" && <SiemTab />}
+      {tab === "bi" && <BiTab />}
     </>
+  );
+}
+
+function BiTab() {
+  const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
+  const { toast } = useToast();
+  const { data: manifest } = useQuery({
+    queryKey: ["bi-manifest"],
+    queryFn: () => api.get<{ feeds: Array<{ name: string; url: string; format: string }> }>(
+      "/api/bi/manifest.json",
+    ),
+  });
+
+  async function downloadFeed(url: string, name: string) {
+    try {
+      const fullUrl = activeProjectId ? `${url}?project_id=${activeProjectId}` : url;
+      const r = await fetch(fullUrl, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error(r.statusText);
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast({ kind: "success", title: `Downloaded ${name}.csv` });
+    } catch (e) {
+      toast({ kind: "error", title: "Download failed", description: (e as Error).message });
+    }
+  }
+
+  const bearerHint = (
+    <div className="rounded-md border border-dashed bg-secondary/30 p-3 text-xs">
+      <div className="font-semibold mb-1">Power BI / Tableau / Excel hook-up</div>
+      <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground">
+        <li>Use the URL of any feed below.</li>
+        <li>Authenticate with bearer token from Settings → My MFA → Token (or login JWT).</li>
+        <li>Power BI: <span className="font-mono">Get Data → Web → Advanced → Authorization: Bearer &lt;token&gt;</span></li>
+        <li>Tableau: Web Data Connector with bearer token.</li>
+      </ol>
+    </div>
+  );
+
+  const icons: Record<string, React.ReactNode> = {
+    findings: <FileSearch className="h-5 w-5" />,
+    risk_scores: <Target className="h-5 w-5" />,
+    test_runs: <Database className="h-5 w-5" />,
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Live BI feeds"
+        description="CSV endpoints consumable by Power BI, Tableau, Excel. Re-fetched on each refresh."
+      >
+        {!manifest ? (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {manifest.feeds.map((f) => (
+              <div key={f.name} className="rounded-lg border bg-card p-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                  {icons[f.name]}
+                </div>
+                <div className="font-semibold">{f.name.replace(/_/g, " ")}</div>
+                <div className="text-[11px] text-muted-foreground font-mono mt-1">{f.url}</div>
+                <div className="mt-3 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => downloadFeed(f.url, f.name)}>
+                    <Download className="h-4 w-4" /> Download
+                  </Button>
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => {
+                      const fullUrl = activeProjectId
+                        ? `${window.location.origin}${f.url}?project_id=${activeProjectId}`
+                        : `${window.location.origin}${f.url}`;
+                      navigator.clipboard.writeText(fullUrl);
+                      toast({ kind: "success", title: "URL copied" });
+                    }}
+                  >
+                    Copy URL
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+      {bearerHint}
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { Activity, FileSearch, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -116,6 +116,7 @@ export function MonitorsPage() {
 
 function MonitorRow({ monitor, onChange }: { monitor: Monitor; onChange: () => void }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const toggle = useMutation({
     mutationFn: () => api.patch(`/api/monitors/${monitor.id}`, { enabled: !monitor.enabled }),
     onSuccess: () => {
@@ -129,9 +130,24 @@ function MonitorRow({ monitor, onChange }: { monitor: Monitor; onChange: () => v
   });
   return (
     <tr className="hover:bg-secondary/30">
-      <td className="py-2 px-3 font-medium">{monitor.name}</td>
+      <td className="py-2 px-3 font-medium">
+        {monitor.name}
+        {monitor.last_triggered_at && (
+          <div className="text-[11px] text-muted-foreground font-normal">
+            Last fired {new Date(monitor.last_triggered_at).toLocaleString()}
+          </div>
+        )}
+      </td>
       <td className="py-2 px-3"><Badge tone="muted">{monitor.subledger_type.replace(/_/g, " ")}</Badge></td>
-      <td className="py-2 px-3 font-mono text-xs">{monitor.pack_code}</td>
+      <td className="py-2 px-3 font-mono text-xs">
+        <button
+          onClick={() => navigate("/packs")}
+          className="hover:text-accent"
+          title="Open pack"
+        >
+          {monitor.pack_code}
+        </button>
+      </td>
       <td className="py-2 px-3 text-right tabular-nums">
         ≥ {monitor.auto_create_finding_min_score.toFixed(0)}
       </td>
@@ -144,6 +160,13 @@ function MonitorRow({ monitor, onChange }: { monitor: Monitor; onChange: () => v
         <StatusBadge status={monitor.enabled ? "ACTIVE" : "PAUSED"} />
       </td>
       <td className="py-2 px-3 flex gap-1">
+        <Button
+          variant="outline" size="sm"
+          onClick={() => navigate(`/findings?tag=monitor&status=DRAFT`)}
+          title="View auto-created findings"
+        >
+          <FileSearch className="h-3 w-3" />
+        </Button>
         <Button variant="outline" size="sm" onClick={() => toggle.mutate()}>
           {monitor.enabled ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
         </Button>

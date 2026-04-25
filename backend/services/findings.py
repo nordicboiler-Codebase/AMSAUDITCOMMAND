@@ -81,7 +81,8 @@ def create_finding(
 def list_findings(
     db: Session, *, user: User, project_id: uuid.UUID | None = None,
     status: FindingStatus | None = None, severity: FindingSeverity | None = None,
-    subsidiary_code: str | None = None,
+    subsidiary_code: str | None = None, tag: str | None = None,
+    dataset_id: uuid.UUID | None = None,
 ) -> list[Finding]:
     q = select(Finding)
     if project_id is not None:
@@ -96,6 +97,8 @@ def list_findings(
         q = q.where(Finding.status == status)
     if severity:
         q = q.where(Finding.severity == severity)
+    if dataset_id is not None:
+        q = q.where(Finding.dataset_id == dataset_id)
     if subsidiary_code:
         sub_project_ids = db.execute(
             select(Project.id).where(Project.subsidiary_code == subsidiary_code)
@@ -103,8 +106,10 @@ def list_findings(
         if not sub_project_ids:
             return []
         q = q.where(Finding.project_id.in_(sub_project_ids))
-    q = q.order_by(Finding.created_at.desc())
-    return list(db.execute(q).scalars())
+    rows = list(db.execute(q.order_by(Finding.created_at.desc())).scalars())
+    if tag:
+        rows = [f for f in rows if tag in (f.tags or [])]
+    return rows
 
 
 def get_finding(db: Session, *, finding_id: uuid.UUID, user: User) -> Finding:

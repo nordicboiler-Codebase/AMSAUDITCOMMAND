@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { History } from "lucide-react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { api, type TestRun } from "@/lib/api";
@@ -8,6 +8,9 @@ import { api, type TestRun } from "@/lib/api";
 export function TestRunsPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const datasetFilter = searchParams.get("dataset") || "";
+  const templateFilter = searchParams.get("template") || "";
 
   const { data: datasets = [] } = useQuery({
     queryKey: ["datasets", activeProjectId],
@@ -16,30 +19,56 @@ export function TestRunsPage() {
     ),
   });
 
-  // Fan out — one runs query per dataset, flatten
+  // When a dataset filter is in the URL, fan out for just that one
+  const targets = datasetFilter
+    ? datasets.filter((d) => d.id === datasetFilter)
+    : datasets;
+
   const { data: runs = [] } = useQuery({
-    queryKey: ["all-runs", datasets.map((d) => d.id)],
+    queryKey: ["all-runs", targets.map((d) => d.id), templateFilter],
     queryFn: async () => {
       const all = await Promise.all(
-        datasets.map((d) =>
+        targets.map((d) =>
           api.get<TestRun[]>(`/api/datasets/${d.id}/runs`).then((rs) =>
             rs.map((r) => ({ ...r, dataset_name: d.name })),
           ),
         ),
       );
-      return all.flat().sort((a, b) =>
+      let flat = all.flat();
+      if (templateFilter) flat = flat.filter((r) => r.template_code === templateFilter);
+      return flat.sort((a, b) =>
         (b.started_at || "").localeCompare(a.started_at || ""),
       );
     },
-    enabled: datasets.length > 0,
+    enabled: targets.length > 0,
   });
+
+  const datasetName = datasetFilter
+    ? datasets.find((d) => d.id === datasetFilter)?.name
+    : null;
 
   return (
     <>
       <PageHeader
         title="Test runs"
-        description="Every test execution. Input and output hashes captured for audit integrity."
+        description={
+          templateFilter
+            ? `Runs of ${templateFilter}.`
+            : datasetName
+              ? `Runs against ${datasetName}.`
+              : "Every test execution. Input and output hashes captured for audit integrity."
+        }
       />
+      {(datasetFilter || templateFilter) && (
+        <div className="mb-3 text-xs">
+          <button
+            onClick={() => navigate("/runs")}
+            className="text-accent hover:underline"
+          >
+            ← Clear filter — show all runs
+          </button>
+        </div>
+      )}
       {runs.length === 0 ? (
         <EmptyState
           icon={<History className="h-5 w-5" />}

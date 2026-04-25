@@ -165,6 +165,12 @@ export function TemplatesPage() {
                 >
                   <Play className="h-4 w-4" /> Run this template
                 </Button>
+                <button
+                  onClick={() => navigate(`/runs?template=${encodeURIComponent(selected.code)}`)}
+                  className="w-full mt-2 text-xs text-accent hover:underline text-center"
+                >
+                  View past runs of this template →
+                </button>
                 <div className="mt-4 space-y-2 text-xs">
                   <InfoRow label="Detector" value={selected.detector_name} mono />
                   <InfoRow label="Category" value={selected.category} />

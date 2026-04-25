@@ -12,6 +12,7 @@ import { FindingsPage } from "./pages/FindingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MLFeedbackPage } from "./pages/MLFeedbackPage";
 import { PacksPage } from "./pages/PacksPage";
+import { PackRunDetailPage } from "./pages/PackRunDetailPage";
 import { ConnectorsPage } from "./pages/ConnectorsPage";
 import { MonitorsPage } from "./pages/MonitorsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="runs/:id" element={<TestRunDetailPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="packs" element={<PacksPage />} />
+        <Route path="packs/runs/:id" element={<PackRunDetailPage />} />
         <Route path="subsidiaries" element={<SubsidiariesPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />

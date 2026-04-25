@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Download, Play, Upload } from "lucide-react";
+import { Database, Download, FileSearch, Play, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
-import { api, getToken, type Dataset } from "@/lib/api";
+import { api, getToken, type Dataset, type Finding, type TestRun } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { formatNumber } from "@/lib/utils";
 
@@ -124,6 +124,16 @@ function DatasetDetail({ dataset }: { dataset: Dataset | null }) {
     ),
     enabled: !!dataset,
   });
+  const { data: runs = [] } = useQuery({
+    queryKey: ["dataset-runs", dataset?.id],
+    queryFn: () => api.get<TestRun[]>(`/api/datasets/${dataset!.id}/runs`),
+    enabled: !!dataset,
+  });
+  const { data: findings = [] } = useQuery({
+    queryKey: ["dataset-findings", dataset?.id],
+    queryFn: () => api.get<Finding[]>(`/api/findings?dataset_id=${dataset!.id}&limit=200`),
+    enabled: !!dataset,
+  });
   if (!dataset) {
     return (
       <SectionCard title="Detail">
@@ -161,6 +171,25 @@ function DatasetDetail({ dataset }: { dataset: Dataset | null }) {
         >
           Risk Explorer
         </Button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+        <button
+          onClick={() => navigate(`/runs?dataset=${dataset.id}`)}
+          className="rounded-md border bg-secondary/30 hover:bg-secondary p-2.5 text-left"
+        >
+          <div className="font-bold tabular-nums text-base">{runs.length}</div>
+          <div className="text-muted-foreground">Test runs →</div>
+        </button>
+        <button
+          onClick={() => navigate(`/findings?dataset=${dataset.id}`)}
+          className="rounded-md border bg-secondary/30 hover:bg-secondary p-2.5 text-left"
+        >
+          <div className="font-bold tabular-nums text-base">{findings.length}</div>
+          <div className="text-muted-foreground flex items-center gap-1">
+            <FileSearch className="h-3 w-3" /> Findings →
+          </div>
+        </button>
       </div>
       {preview && preview.rows.length > 0 && (
         <div className="mt-4">

@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, Play } from "lucide-react";
+import { History, Package, Play } from "lucide-react";
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { api } from "@/lib/api";
+import { useToast } from "@/lib/toast";
+
+interface PackRunSummary {
+  id: string;
+  dataset_id: string;
+  dataset_name: string;
+  pack_code: string;
+  status: string;
+  started_at?: string;
+  finished_at?: string;
+  summary: { templates_run?: number };
+}
 
 interface Pack {
   code: string;
@@ -18,6 +30,8 @@ interface Pack {
 
 export function PacksPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [selected, setSelected] = useState<Pack | null>(null);
   const [datasetId, setDatasetId] = useState<string>("");
   const qc = useQueryClient();
@@ -33,14 +47,28 @@ export function PacksPage() {
     ),
     enabled: !!activeProjectId,
   });
+  const { data: packRuns = [] } = useQuery({
+    queryKey: ["pack-runs", activeProjectId],
+    queryFn: () => api.get<PackRunSummary[]>(
+      `/api/packs/runs${activeProjectId ? `?project_id=${activeProjectId}&limit=20` : "?limit=20"}`,
+    ),
+  });
 
   const runMutation = useMutation({
-    mutationFn: () => api.post("/api/packs/run", {
-      dataset_id: datasetId,
-      pack_code: selected!.code,
-      template_overrides: {},
-    }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }),
+    mutationFn: () => api.post<{ pack_run_id: string; summary: { templates_run: number } }>(
+      "/api/packs/run",
+      { dataset_id: datasetId, pack_code: selected!.code, template_overrides: {} },
+    ),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["runs"] });
+      qc.invalidateQueries({ queryKey: ["pack-runs"] });
+      toast({
+        kind: "success",
+        title: `Pack run complete — ${data.summary.templates_run} templates`,
+      });
+      navigate(`/packs/runs/${data.pack_run_id}`);
+    },
+    onError: (e) => toast({ kind: "error", title: "Pack run failed", description: (e as Error).message }),
   });
 
   return (
@@ -99,7 +127,14 @@ export function PacksPage() {
                 <div className="eyebrow mt-4 mb-2">Templates ({selected.template_codes.length})</div>
                 <div className="max-h-[260px] overflow-auto text-xs font-mono grid grid-cols-3 gap-1">
                   {selected.template_codes.map((c) => (
-                    <div key={c} className="px-2 py-1 bg-secondary rounded text-center">{c}</div>
+                    <button
+                      key={c}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/templates?code=${encodeURIComponent(c)}`); }}
+                      className="px-2 py-1 bg-secondary rounded text-center hover:bg-accent/10 hover:text-accent transition-colors"
+                      title="Open template"
+                    >
+                      {c}
+                    </button>
                   ))}
                 </div>
                 <div className="eyebrow mt-6 mb-2">Run on dataset</div>
@@ -121,20 +156,53 @@ export function PacksPage() {
                   <Play className="h-4 w-4" />
                   {runMutation.isPending ? "Running…" : `Run ${selected.code}`}
                 </Button>
-                {runMutation.isSuccess && runMutation.data ? (
-                  <div className="mt-3 text-xs text-success">
-                    Pack complete — {(runMutation.data as { summary: { templates_run: number } }).summary.templates_run} templates ran.
-                  </div>
-                ) : null}
-                {runMutation.isError && (
-                  <div className="mt-3 text-xs text-destructive">
-                    {(runMutation.error as Error).message}
-                  </div>
-                )}
               </>
             )}
           </SectionCard>
         </div>
+      )}
+
+      {packRuns.length > 0 && (
+        <SectionCard
+          className="mt-6"
+          title={`Recent pack runs (${packRuns.length})`}
+          actions={<History className="h-4 w-4 text-muted-foreground" />}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold py-2 px-3">Pack</th>
+                  <th className="text-left font-semibold py-2 px-3">Dataset</th>
+                  <th className="text-left font-semibold py-2 px-3">Status</th>
+                  <th className="text-right font-semibold py-2 px-3">Templates</th>
+                  <th className="text-left font-semibold py-2 px-3">Started</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {packRuns.map((pr) => (
+                  <tr
+                    key={pr.id}
+                    onClick={() => navigate(`/packs/runs/${pr.id}`)}
+                    className="cursor-pointer hover:bg-secondary/30"
+                  >
+                    <td className="py-2 px-3 font-mono text-xs font-medium text-accent">
+                      {pr.pack_code}
+                    </td>
+                    <td className="py-2 px-3 text-sm">{pr.dataset_name}</td>
+                    <td className="py-2 px-3"><StatusBadge status={pr.status} /></td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      {pr.summary.templates_run ?? "—"}
+                    </td>
+                    <td className="py-2 px-3 text-xs text-muted-foreground">
+                      {pr.started_at ? new Date(pr.started_at).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
       )}
     </>
   );
