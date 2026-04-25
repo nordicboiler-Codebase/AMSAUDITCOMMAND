@@ -20,8 +20,9 @@ class NLQIn(BaseModel):
 
 
 @router.get("/ai/status")
-def ai_status(_u: User = Depends(get_current_user)) -> dict:
-    return nlq.ai_status()
+def ai_status(db: Session = Depends(get_db),
+              _u: User = Depends(get_current_user)) -> dict:
+    return nlq.ai_status(db)
 
 
 @router.post("/datasets/{dataset_id}/nlq")

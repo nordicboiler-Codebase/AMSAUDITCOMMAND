@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "service": "techsource-audit-analytics"}
 
     from backend.api import (
+        ai_settings,
         auth,
         audit_log,
         bi_export,
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api", tags=["reports"])
     app.include_router(library.router, prefix="/api/library", tags=["library"])
     app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+    app.include_router(ai_settings.router, prefix="/api", tags=["ai-settings"])
     app.include_router(findings.router, prefix="/api/findings", tags=["findings"])
     app.include_router(schedules.router, prefix="/api/schedules", tags=["schedules"])
     app.include_router(engagements.router, prefix="/api/engagements", tags=["engagements"])

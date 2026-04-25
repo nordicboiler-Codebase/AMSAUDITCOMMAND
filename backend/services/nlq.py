@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
 from backend.models import AuditAction, Dataset, Finding, TestRun
-from backend.services import audit_log
+from backend.services import audit_log, llm
 from backend.templates import catalog as tpl_catalog
 
 settings = get_settings()
@@ -27,18 +27,23 @@ Return ONLY valid JSON with this schema:
 Do not invent template codes that are not in the provided catalog."""
 
 
-def _get_client():
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return None
-    if not settings.anthropic_api_key:
-        return None
-    return Anthropic(api_key=settings.anthropic_api_key)
+def _get_client(db: Session):
+    """Provider-agnostic client. Falls back to legacy env-based Anthropic."""
+    return llm.get_active_client(db)
 
 
-def ai_status() -> dict:
-    """Returns whether Claude is wired up, and why not if not."""
+def ai_status(db: Session | None = None) -> dict:
+    """Status for the UI badges. Reads DB if available, else legacy env config."""
+    if db is not None:
+        s = llm.get_status(db)
+        return {
+            "enabled": s["enabled"],
+            "model": s["model"],
+            "reason": s["reason"],
+            "active": s["active"],
+            "providers": s["providers"],
+        }
+    # Legacy/no-DB path (kept for tests).
     try:
         from anthropic import Anthropic  # noqa: F401
         sdk_installed = True
@@ -46,26 +51,17 @@ def ai_status() -> dict:
         sdk_installed = False
     key_set = bool(settings.anthropic_api_key)
     enabled = sdk_installed and key_set
-    if enabled:
-        reason = "ready"
-    elif not sdk_installed:
-        reason = "anthropic SDK not installed in this environment"
-    else:
-        reason = "ANTHROPIC_API_KEY not set in .env"
     return {
         "enabled": enabled,
         "model": settings.anthropic_model if enabled else None,
-        "reason": reason,
-        "sdk_installed": sdk_installed,
-        "key_set": key_set,
+        "reason": "ready" if enabled else "AI disabled — configure a provider in Settings",
+        "active": "anthropic" if enabled else None,
+        "providers": [],
     }
 
 
-def _stub_reason() -> str:
-    s = ai_status()
-    if not s["sdk_installed"]:
-        return "AI disabled — anthropic SDK not installed (run: pip install anthropic)"
-    return "AI disabled — ANTHROPIC_API_KEY not set in .env"
+def _stub_reason(db: Session | None = None) -> str:
+    return ai_status(db).get("reason", "AI disabled — configure a provider in Settings")
 
 
 def _build_catalog_block(db: Session, subledger) -> str:
@@ -93,14 +89,14 @@ def nl_to_template(
     dataset = db.get(Dataset, dataset_id)
     if not dataset:
         raise ValueError("Dataset not found")
-    client = _get_client()
+    client = _get_client(db)
     if client is None:
         first = tpl_catalog.list_templates(db, subledger=dataset.subledger_type)
         tpl = first[0] if first else None
         result = {
             "template_code": tpl.code if tpl else None,
             "params": tpl.default_params if tpl else {},
-            "rationale": _stub_reason(),
+            "rationale": _stub_reason(db),
             "confidence": 0.0,
         }
         audit_log.log_action(
@@ -122,14 +118,10 @@ AUDITOR QUESTION:
 {question}
 
 Choose the best template and return JSON only."""
-    resp = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=1024,
-        temperature=0.2,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
+    text = client.complete(
+        system=SYSTEM_PROMPT, user=user_prompt,
+        max_tokens=1024, temperature=0.2,
     )
-    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
     try:
         start = text.index("{")
         end = text.rindex("}") + 1
@@ -142,7 +134,8 @@ Choose the best template and return JSON only."""
         entity_id=str(dataset_id),
         details={
             "question": question,
-            "model": settings.anthropic_model,
+            "provider": client.provider,
+            "model": client.model,
             "response": parsed,
             "chosen": parsed.get("template_code"),
         },
@@ -157,10 +150,10 @@ def suggest_templates(db: Session, *, dataset_id: uuid.UUID, user_id: uuid.UUID,
     if not dataset:
         raise ValueError("Dataset not found")
     candidates = tpl_catalog.list_templates(db, subledger=dataset.subledger_type)
-    client = _get_client()
+    client = _get_client(db)
     if client is None or not candidates:
         # Stub fallback — first N by subledger
-        reason = _stub_reason() if client is None else "No templates match this subledger."
+        reason = _stub_reason(db) if client is None else "No templates match this subledger."
         return [
             {"template_code": t.code, "name": t.name, "detector_name": t.detector_name,
              "params": t.default_params, "confidence": 0.5,
@@ -190,14 +183,10 @@ and visible patterns in the sample rows. Return ONLY valid JSON:
 
 Order from highest to lowest priority. Use only template_codes from the catalog above."""
 
-    resp = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=1500,
-        temperature=0.2,
+    text = client.complete(
         system="You are an audit analytics assistant. Suggest the most valuable tests for an auditor to run, given a dataset's nature.",
-        messages=[{"role": "user", "content": user_prompt}],
+        user=user_prompt, max_tokens=1500, temperature=0.2,
     )
-    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
     parsed: dict[str, Any] = {}
     try:
         start = text.index("{")
@@ -226,7 +215,8 @@ Order from highest to lowest priority. Use only template_codes from the catalog 
         db, user_id=user_id, action=AuditAction.NLQ, entity_type="dataset",
         entity_id=str(dataset_id),
         details={
-            "model": settings.anthropic_model,
+            "provider": client.provider,
+            "model": client.model,
             "kind": "suggest_templates",
             "suggested": [s["template_code"] for s in out],
         },
@@ -239,10 +229,10 @@ def generate_narrative(db: Session, *, test_run_id: uuid.UUID, user_id: uuid.UUI
     run = db.get(TestRun, test_run_id)
     if not run:
         raise ValueError("Run not found")
-    client = _get_client()
+    client = _get_client(db)
     if client is None:
         return (
-            f"[{_stub_reason()}]\n\n"
+            f"[{_stub_reason(db)}]\n\n"
             f"Test {run.template_code or run.detector_name} ran on "
             f"{run.started_at} and produced {run.findings_count} findings. "
             "Auditor review recommended."
@@ -253,17 +243,11 @@ def generate_narrative(db: Session, *, test_run_id: uuid.UUID, user_id: uuid.UUI
 - Summary: {json.dumps(run.summary)[:2000]}
 
 Keep factual, avoid speculation, suggest follow-up."""
-    resp = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=800,
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+    text = client.complete(system=None, user=prompt, max_tokens=800, temperature=0.3)
     audit_log.log_action(
         db, user_id=user_id, action=AuditAction.NLQ, entity_type="test_run",
         entity_id=str(run.id),
-        details={"narrative_generated": True, "model": settings.anthropic_model},
+        details={"narrative_generated": True, "provider": client.provider, "model": client.model},
     )
     db.commit()
     return text
@@ -276,13 +260,13 @@ def generate_finding_narrative(
     if not f:
         raise ValueError("Finding not found")
 
-    client = _get_client()
+    client = _get_client(db)
     record_sample = (f.record_keys or [])[:20]
     template_codes = list(f.linked_template_codes or [])
 
     if client is None:
         return (
-            f"[{_stub_reason()}]\n\n"
+            f"[{_stub_reason(db)}]\n\n"
             f"Finding {f.code}: {f.title}. Severity {f.severity.value}. "
             f"{len(f.record_keys or [])} record(s) flagged"
             + (f" by templates {', '.join(template_codes)}" if template_codes else "")
@@ -321,18 +305,12 @@ The narrative should:
 - Stay factual; avoid speculation about intent
 - Be ready to paste directly into a workpaper."""
 
-    resp = client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=900,
-        temperature=0.3,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+    text = client.complete(system=None, user=prompt, max_tokens=900, temperature=0.3)
     audit_log.log_action(
         db, user_id=user_id, action=AuditAction.NLQ, entity_type="finding",
         entity_id=str(f.id),
-        details={"narrative_generated": True, "model": settings.anthropic_model,
-                 "kind": "finding_narrative"},
+        details={"narrative_generated": True, "provider": client.provider,
+                 "model": client.model, "kind": "finding_narrative"},
     )
     db.commit()
     return text

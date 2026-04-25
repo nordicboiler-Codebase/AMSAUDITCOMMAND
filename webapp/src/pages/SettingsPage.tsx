@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Download, FileSearch, Target } from "lucide-react";
+import { CheckCircle2, Database, Download, FileSearch, Sparkles, Target, XCircle } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -11,15 +11,16 @@ import { api, getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 
-type Tab = "sso" | "email" | "mfa" | "retention" | "siem" | "bi";
+type Tab = "sso" | "email" | "mfa" | "retention" | "siem" | "bi" | "ai";
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("sso");
+  const [tab, setTab] = useState<Tab>("ai");
   return (
     <>
-      <PageHeader title="Settings" description="Platform configuration — SSO, email, MFA, retention, SIEM, BI feeds." />
+      <PageHeader title="Settings" description="Platform configuration — AI providers, SSO, email, MFA, retention, SIEM, BI feeds." />
       <div className="flex gap-1 border-b mb-5 flex-wrap">
         {([
+          ["ai", "AI Providers"],
           ["sso", "SSO"], ["email", "Email"], ["mfa", "My MFA"],
           ["retention", "Data retention"], ["siem", "SIEM webhook"],
           ["bi", "BI feeds"],
@@ -31,10 +32,12 @@ export function SettingsPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
+            {k === "ai" && <Sparkles className="h-3.5 w-3.5 inline -translate-y-px mr-1 text-accent" />}
             {label}
           </button>
         ))}
       </div>
+      {tab === "ai" && <AiProvidersTab />}
       {tab === "sso" && <SsoTab />}
       {tab === "email" && <EmailTab />}
       {tab === "mfa" && <MfaTab />}
@@ -42,6 +45,295 @@ export function SettingsPage() {
       {tab === "siem" && <SiemTab />}
       {tab === "bi" && <BiTab />}
     </>
+  );
+}
+
+interface AiProvider {
+  provider: "anthropic" | "openai" | "gemini";
+  label: string;
+  key_hint: string;
+  enabled: boolean;
+  configured: boolean;
+  sdk_installed: boolean;
+  model: string;
+  model_choices: string[];
+  default_model: string;
+  api_key: string;
+}
+
+interface AiSettingsResponse {
+  active: string | null;
+  enabled: boolean;
+  reason: string;
+  model: string | null;
+  legacy_env_active: boolean;
+  providers: AiProvider[];
+}
+
+const PROVIDER_DOC_URL: Record<string, string> = {
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  gemini: "https://aistudio.google.com/apikey",
+};
+
+function AiProvidersTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: settings } = useQuery({
+    queryKey: ["ai-settings"],
+    queryFn: () => api.get<AiSettingsResponse>("/api/settings/ai"),
+  });
+
+  // Working copy — gets seeded from server data, edited locally, saved on demand.
+  const [draft, setDraft] = useState<Record<string, AiProvider>>({});
+  const [active, setActive] = useState<string>("");
+  const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (settings) {
+      const map: Record<string, AiProvider> = {};
+      for (const p of settings.providers) map[p.provider] = p;
+      setDraft(map);
+      setActive(settings.active || "");
+    }
+  }, [settings]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const providersBody: Record<string, unknown> = {};
+      for (const p of Object.values(draft)) {
+        providersBody[p.provider] = {
+          enabled: p.enabled,
+          model: p.model,
+          // Only send api_key if user actually edited it; otherwise null = leave unchanged
+          api_key: editingKeys[p.provider] ? p.api_key || "" : null,
+        };
+      }
+      return api.put<AiSettingsResponse>("/api/settings/ai", {
+        active: active || "",
+        providers: providersBody,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-settings"] });
+      qc.invalidateQueries({ queryKey: ["ai-status"] });
+      setEditingKeys({});
+      toast({ kind: "success", title: "AI settings saved" });
+    },
+    onError: (e) => toast({
+      kind: "error", title: "Save failed",
+      description: (e as Error).message,
+    }),
+  });
+
+  const test = useMutation({
+    mutationFn: (provider: string) =>
+      api.post<{ ok: boolean; model?: string; sample?: string; error?: string }>(
+        `/api/settings/ai/${provider}/test`,
+      ),
+    onSuccess: (r) => {
+      if (r.ok) {
+        toast({
+          kind: "success", title: "Provider OK",
+          description: `${r.model} replied: ${r.sample}`,
+        });
+      } else {
+        toast({ kind: "error", title: "Provider test failed", description: r.error });
+      }
+    },
+    onError: (e) => toast({
+      kind: "error", title: "Test failed", description: (e as Error).message,
+    }),
+  });
+
+  if (!settings) return <div className="text-sm text-muted-foreground">Loading…</div>;
+
+  const update = (provider: string, patch: Partial<AiProvider>) => {
+    setDraft((d) => ({ ...d, [provider]: { ...d[provider], ...patch } }));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-md border p-3 flex items-center gap-3 ${
+        settings.enabled
+          ? "border-success/30 bg-success/5"
+          : "border-warning/30 bg-warning/5"
+      }`}>
+        {settings.enabled
+          ? <CheckCircle2 className="h-5 w-5 text-success" />
+          : <XCircle className="h-5 w-5 text-warning" />}
+        <div className="text-sm">
+          <div className="font-semibold">
+            {settings.enabled
+              ? `AI on — ${settings.providers.find(p => p.provider === settings.active)?.label} · ${settings.model}`
+              : "AI off"}
+          </div>
+          <div className="text-xs text-muted-foreground">{settings.reason}</div>
+          {settings.legacy_env_active && (
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Currently using ANTHROPIC_API_KEY from .env (legacy). Configuring a
+              provider here will take precedence.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SectionCard title="Active provider" description="Which provider Claude features in this app should call.">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          {settings.providers.map((p) => {
+            const can = (draft[p.provider]?.configured || editingKeys[p.provider]) && draft[p.provider]?.sdk_installed && draft[p.provider]?.enabled;
+            return (
+              <label
+                key={p.provider}
+                className={`rounded-md border p-3 cursor-pointer transition-all ${
+                  active === p.provider
+                    ? "ring-2 ring-accent border-accent bg-accent/5"
+                    : "hover:bg-secondary/30"
+                } ${!can ? "opacity-60" : ""}`}
+              >
+                <div className="flex items-start gap-2">
+                  <input
+                    type="radio" name="active-provider"
+                    checked={active === p.provider}
+                    onChange={() => setActive(p.provider)}
+                    disabled={!can}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold">{p.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {can
+                        ? `Ready · ${draft[p.provider]?.model}`
+                        : !p.sdk_installed
+                          ? "SDK not installed"
+                          : !p.configured && !editingKeys[p.provider]
+                            ? "Not configured"
+                            : !p.enabled
+                              ? "Disabled below"
+                              : "Configure below"}
+                    </div>
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      {settings.providers.map((p) => (
+        <SectionCard
+          key={p.provider}
+          title={p.label}
+          description={p.key_hint}
+          actions={
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border ${
+                  p.sdk_installed
+                    ? "border-success/30 bg-success/10 text-success"
+                    : "border-destructive/30 bg-destructive/10 text-destructive"
+                }`}
+              >
+                SDK {p.sdk_installed ? "OK" : "missing"}
+              </span>
+              {p.configured && (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border border-success/30 bg-success/10 text-success">
+                  key set
+                </span>
+              )}
+              <Button
+                variant="outline" size="sm"
+                onClick={() => test.mutate(p.provider)}
+                disabled={!p.configured || !p.sdk_installed || test.isPending}
+                title="Run a tiny ping call to verify the key works"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {test.isPending && test.variables === p.provider ? "Testing…" : "Test"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>API key</Label>
+              <div className="flex gap-2">
+                <Input
+                  type={editingKeys[p.provider] ? "text" : "password"}
+                  value={
+                    editingKeys[p.provider]
+                      ? (draft[p.provider]?.api_key || "")
+                      : (p.configured ? "••••••••••••••••" : "")
+                  }
+                  onChange={(e) => update(p.provider, { api_key: e.target.value })}
+                  disabled={!editingKeys[p.provider]}
+                  placeholder={`Paste your ${p.label} key…`}
+                  className="font-mono text-xs"
+                />
+                {editingKeys[p.provider] ? (
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => {
+                      setEditingKeys((e) => ({ ...e, [p.provider]: false }));
+                      update(p.provider, { api_key: "" });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => setEditingKeys((e) => ({ ...e, [p.provider]: true }))}
+                  >
+                    {p.configured ? "Replace" : "Set key"}
+                  </Button>
+                )}
+              </div>
+              <a
+                href={PROVIDER_DOC_URL[p.provider]} target="_blank" rel="noreferrer"
+                className="text-[11px] text-accent hover:underline mt-1 inline-block"
+              >
+                Get a key →
+              </a>
+            </div>
+
+            <div>
+              <Label>Model</Label>
+              <Select
+                value={draft[p.provider]?.model ?? p.model}
+                onChange={(e) => update(p.provider, { model: e.target.value })}
+              >
+                {p.model_choices.map((m) => (
+                  <option key={m} value={m}>{m}{m === p.default_model ? " (default)" : ""}</option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox" id={`enabled-${p.provider}`}
+                checked={draft[p.provider]?.enabled ?? p.enabled}
+                onChange={(e) => update(p.provider, { enabled: e.target.checked })}
+              />
+              <Label htmlFor={`enabled-${p.provider}`} className="mb-0">
+                Enable this provider (must also be selected as active above to be used)
+              </Label>
+            </div>
+          </div>
+        </SectionCard>
+      ))}
+
+      <div className="flex justify-end gap-2">
+        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save AI settings"}
+        </Button>
+      </div>
+
+      <div className="text-[11px] text-muted-foreground">
+        Keys are encrypted with the platform Fernet keychain at rest. Every Claude call
+        is logged to the tamper-evident audit chain (provider, model, prompt outcome,
+        chosen template). Rate limited to 30 requests/minute/IP.
+      </div>
+    </div>
   );
 }
 
