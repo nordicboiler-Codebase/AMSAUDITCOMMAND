@@ -37,6 +37,37 @@ def _get_client():
     return Anthropic(api_key=settings.anthropic_api_key)
 
 
+def ai_status() -> dict:
+    """Returns whether Claude is wired up, and why not if not."""
+    try:
+        from anthropic import Anthropic  # noqa: F401
+        sdk_installed = True
+    except ImportError:
+        sdk_installed = False
+    key_set = bool(settings.anthropic_api_key)
+    enabled = sdk_installed and key_set
+    if enabled:
+        reason = "ready"
+    elif not sdk_installed:
+        reason = "anthropic SDK not installed in this environment"
+    else:
+        reason = "ANTHROPIC_API_KEY not set in .env"
+    return {
+        "enabled": enabled,
+        "model": settings.anthropic_model if enabled else None,
+        "reason": reason,
+        "sdk_installed": sdk_installed,
+        "key_set": key_set,
+    }
+
+
+def _stub_reason() -> str:
+    s = ai_status()
+    if not s["sdk_installed"]:
+        return "AI disabled — anthropic SDK not installed (run: pip install anthropic)"
+    return "AI disabled — ANTHROPIC_API_KEY not set in .env"
+
+
 def _build_catalog_block(db: Session, subledger) -> str:
     rows = tpl_catalog.list_templates(db, subledger=subledger)
     return "\n".join(
@@ -69,7 +100,7 @@ def nl_to_template(
         result = {
             "template_code": tpl.code if tpl else None,
             "params": tpl.default_params if tpl else {},
-            "rationale": "Stub: Anthropic API key not configured",
+            "rationale": _stub_reason(),
             "confidence": 0.0,
         }
         audit_log.log_action(
@@ -129,10 +160,11 @@ def suggest_templates(db: Session, *, dataset_id: uuid.UUID, user_id: uuid.UUID,
     client = _get_client()
     if client is None or not candidates:
         # Stub fallback — first N by subledger
+        reason = _stub_reason() if client is None else "No templates match this subledger."
         return [
             {"template_code": t.code, "name": t.name, "detector_name": t.detector_name,
              "params": t.default_params, "confidence": 0.5,
-             "rationale": "Default ranking — Anthropic API key not configured."}
+             "rationale": reason}
             for t in candidates[:limit]
         ]
 
@@ -210,9 +242,10 @@ def generate_narrative(db: Session, *, test_run_id: uuid.UUID, user_id: uuid.UUI
     client = _get_client()
     if client is None:
         return (
+            f"[{_stub_reason()}]\n\n"
             f"Test {run.template_code or run.detector_name} ran on "
             f"{run.started_at} and produced {run.findings_count} findings. "
-            "Auditor review recommended. (Stub: configure ANTHROPIC_API_KEY for AI-drafted narratives.)"
+            "Auditor review recommended."
         )
     prompt = f"""Draft a 2-paragraph audit finding in professional audit report style for:
 - Template: {run.template_code or run.detector_name}
@@ -249,11 +282,11 @@ def generate_finding_narrative(
 
     if client is None:
         return (
+            f"[{_stub_reason()}]\n\n"
             f"Finding {f.code}: {f.title}. Severity {f.severity.value}. "
             f"{len(f.record_keys or [])} record(s) flagged"
             + (f" by templates {', '.join(template_codes)}" if template_codes else "")
-            + ". Auditor review recommended. "
-            "(Stub: configure ANTHROPIC_API_KEY for AI-drafted narratives.)"
+            + ". Auditor review recommended."
         )
 
     template_block = ""

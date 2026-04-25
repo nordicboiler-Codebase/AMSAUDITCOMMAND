@@ -19,6 +19,11 @@ class NLQIn(BaseModel):
     question: str
 
 
+@router.get("/ai/status")
+def ai_status(_u: User = Depends(get_current_user)) -> dict:
+    return nlq.ai_status()
+
+
 @router.post("/datasets/{dataset_id}/nlq")
 def nl_query(dataset_id: uuid.UUID, body: NLQIn, db: Session = Depends(get_db),
              user: User = Depends(get_current_user),

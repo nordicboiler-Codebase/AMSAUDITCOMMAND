@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { AiStatusBadge } from "@/components/ui/ai-status";
 import { SeverityBadge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -155,15 +156,18 @@ export function FindingDetailPage() {
           <SectionCard
             title="Description"
             actions={
-              <Button
-                variant="outline" size="sm"
-                onClick={() => draftNarrative.mutate()}
-                disabled={draftNarrative.isPending}
-                title="Have Claude draft an audit-style write-up for this finding"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                {draftNarrative.isPending ? "Drafting…" : "AI draft"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <AiStatusBadge />
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => draftNarrative.mutate()}
+                  disabled={draftNarrative.isPending}
+                  title="Have Claude draft an audit-style write-up for this finding"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                  {draftNarrative.isPending ? "Drafting…" : "AI draft"}
+                </Button>
+              </div>
             }
           >
             {finding.description ? (

@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { AiStatusBadge } from "@/components/ui/ai-status";
 import { SeverityBadge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -71,15 +72,18 @@ export function TestRunDetailPage() {
           <div className="flex items-center gap-2">
             <StatusBadge status={run.status || "PENDING"} />
             {run.status === "COMPLETED" && (
-              <Button
-                variant="outline"
-                onClick={() => draftNarrative.mutate()}
-                disabled={draftNarrative.isPending}
-                title="Have Claude draft an audit-style narrative for this run"
-              >
-                <Sparkles className="h-4 w-4 text-accent" />
-                {draftNarrative.isPending ? "Drafting…" : "AI draft"}
-              </Button>
+              <>
+                <AiStatusBadge />
+                <Button
+                  variant="outline"
+                  onClick={() => draftNarrative.mutate()}
+                  disabled={draftNarrative.isPending}
+                  title="Have Claude draft an audit-style narrative for this run"
+                >
+                  <Sparkles className="h-4 w-4 text-accent" />
+                  {draftNarrative.isPending ? "Drafting…" : "AI draft"}
+                </Button>
+              </>
             )}
             {run.findings_count > 0 && (
               <Button

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Play, Search, Sparkles, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { AiOffBanner, AiStatusBadge } from "@/components/ui/ai-status";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
@@ -207,9 +208,11 @@ function AiTab({
 
   return (
     <div className="space-y-4">
+      <AiOffBanner />
       <SectionCard
         title="Ask Claude in plain English"
         description="Describe what you want to test — Claude will pick the best template from the catalog and pre-fill its parameters."
+        actions={<AiStatusBadge />}
       >
         <div className="flex gap-2">
           <Input
