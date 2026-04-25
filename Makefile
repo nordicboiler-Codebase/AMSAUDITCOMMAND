@@ -52,7 +52,8 @@ webapp-build:
 webapp-logs:
 	tail -f logs/webapp.log
 
-demo:
+demo: migrate
+	python3 scripts/seed_admin.py
 	python3 scripts/seed_demo.py
 
 regen-samples:

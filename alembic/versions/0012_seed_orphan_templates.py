@@ -40,6 +40,42 @@ NEW_TEMPLATES = [
 
 
 def upgrade() -> None:
+    # NOTE: these template codes were later folded into seed_data.py (and so are
+    # already inserted by migration 0002). On a fresh DB, this migration would
+    # duplicate them. Use ON CONFLICT DO NOTHING so this migration is idempotent
+    # whether or not 0002 already inserted them.
+    import json
+    import uuid
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    bind = op.get_bind()
+    for (code, name, det, params, sub, cat, w, tags, desc) in NEW_TEMPLATES:
+        bind.execute(
+            sa.text("""
+                INSERT INTO test_templates
+                  (id, code, name, description, detector_name, default_params,
+                   subledger_type, category, default_weight, tags, is_system, version,
+                   visibility, created_at, updated_at)
+                VALUES
+                  (:id, :code, :name, :description, :detector_name,
+                   CAST(:default_params AS jsonb),
+                   :subledger_type, :category, :default_weight,
+                   CAST(:tags AS varchar[]), TRUE, 1, 'SHARED', :now, :now)
+                ON CONFLICT (code, version) DO NOTHING
+            """),
+            {
+                "id": uuid.uuid4(),
+                "code": code, "name": name, "description": desc,
+                "detector_name": det, "default_params": json.dumps(params),
+                "subledger_type": sub, "category": cat, "default_weight": w,
+                "tags": "{" + ",".join(f'"{t}"' for t in tags) + "}",
+                "now": now,
+            },
+        )
+    return
+
+    # Old code path retained below (unreachable) for downgrade reference.
     test_templates = sa.table(
         "test_templates",
         sa.column("id", postgresql.UUID(as_uuid=True)),
