@@ -1,4 +1,4 @@
-.PHONY: help setup run smoke test migrate reset stop db-logs api-logs ui-logs webapp-logs webapp-install webapp-build clean
+.PHONY: help setup run smoke test migrate reset stop db-logs api-logs ui-logs webapp-logs webapp-install webapp-build clean demo regen-samples
 
 help:
 	@echo "TechSource Audit Analytics — dev commands"
@@ -51,6 +51,12 @@ webapp-build:
 
 webapp-logs:
 	tail -f logs/webapp.log
+
+demo:
+	python3 scripts/seed_demo.py
+
+regen-samples:
+	python3 scripts/generate_samples.py
 
 db-logs:
 	docker compose logs -f db
