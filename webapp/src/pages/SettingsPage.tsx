@@ -152,6 +152,8 @@ function AiProvidersTab() {
     setDraft((d) => ({ ...d, [provider]: { ...d[provider], ...patch } }));
   };
 
+  const noProviderConfigured = settings.providers.every((p) => !p.configured);
+
   return (
     <div className="space-y-4">
       <div className={`rounded-md border p-3 flex items-center gap-3 ${
@@ -178,39 +180,83 @@ function AiProvidersTab() {
         </div>
       </div>
 
-      <SectionCard title="Active provider" description="Which provider Claude features in this app should call.">
+      {noProviderConfigured && !settings.legacy_env_active && (
+        <div className="rounded-md border border-accent/30 bg-accent/5 p-4 text-sm">
+          <div className="font-semibold flex items-center gap-2 mb-2">
+            <Sparkles className="h-4 w-4 text-accent" /> Get started in 3 steps
+          </div>
+          <ol className="list-decimal pl-5 space-y-1.5 text-muted-foreground">
+            <li>
+              Pick a provider below. <span className="text-foreground font-medium">Google Gemini</span> is the
+              easiest — free key with no credit card from{" "}
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-accent hover:underline">aistudio.google.com/apikey</a>.
+            </li>
+            <li>Click <span className="text-foreground font-medium">Set key</span>, paste it, tick <span className="text-foreground font-medium">Enable</span>.</li>
+            <li>Pick that provider as <span className="text-foreground font-medium">Active</span> above, then click <span className="text-foreground font-medium">Save AI settings</span>.</li>
+          </ol>
+        </div>
+      )}
+
+      {settings.providers.some((p) => !p.sdk_installed) && (
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+          <div className="font-semibold mb-1">Some provider SDKs are missing in the running backend</div>
+          <div className="text-muted-foreground">
+            The OpenAI and Gemini SDKs were added to <code className="font-mono">pyproject.toml</code> but
+            aren't loaded yet inside the running container. To pick them up, rebuild &amp; restart:
+          </div>
+          <pre className="mt-2 bg-card border rounded p-2 font-mono text-[11px]">
+{`docker-compose build app
+docker-compose up -d app`}
+          </pre>
+          <div className="text-muted-foreground mt-2">
+            You can still configure a provider here in the meantime — once the
+            backend restarts, your saved keys will be picked up automatically.
+          </div>
+        </div>
+      )}
+
+      <SectionCard
+        title="Active provider"
+        description="Which provider Claude features in this app should call. You can pre-select a provider whose SDK isn't loaded yet — it'll activate as soon as the backend restarts."
+      >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {settings.providers.map((p) => {
-            const can = (draft[p.provider]?.configured || editingKeys[p.provider]) && draft[p.provider]?.sdk_installed && draft[p.provider]?.enabled;
+            // A provider can be selected as active if the SDK is loaded
+            // OR if the user has at least supplied a key (so they can pre-stage).
+            const hasKey = draft[p.provider]?.configured || editingKeys[p.provider];
+            const ready = hasKey && p.sdk_installed && (draft[p.provider]?.enabled ?? p.enabled);
+            const canSelect = hasKey || p.sdk_installed; // permissive — let users pre-pick
             return (
               <label
                 key={p.provider}
-                className={`rounded-md border p-3 cursor-pointer transition-all ${
+                className={`rounded-md border p-3 transition-all ${
                   active === p.provider
                     ? "ring-2 ring-accent border-accent bg-accent/5"
-                    : "hover:bg-secondary/30"
-                } ${!can ? "opacity-60" : ""}`}
+                    : canSelect ? "hover:bg-secondary/30 cursor-pointer" : ""
+                } ${!canSelect ? "opacity-60" : ""}`}
               >
                 <div className="flex items-start gap-2">
                   <input
                     type="radio" name="active-provider"
                     checked={active === p.provider}
                     onChange={() => setActive(p.provider)}
-                    disabled={!can}
+                    disabled={!canSelect}
                     className="mt-0.5"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold">{p.label}</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {can
+                      {ready
                         ? `Ready · ${draft[p.provider]?.model}`
-                        : !p.sdk_installed
-                          ? "SDK not installed"
-                          : !p.configured && !editingKeys[p.provider]
-                            ? "Not configured"
-                            : !p.enabled
-                              ? "Disabled below"
-                              : "Configure below"}
+                        : !p.sdk_installed && hasKey
+                          ? "Pre-staged · SDK loads on restart"
+                          : !p.sdk_installed
+                            ? "SDK not loaded — rebuild backend"
+                            : !hasKey
+                              ? "No API key — set one below"
+                              : !(draft[p.provider]?.enabled ?? p.enabled)
+                                ? "Toggle ‘Enable’ below"
+                                : "Configure below"}
                     </div>
                   </div>
                 </div>
