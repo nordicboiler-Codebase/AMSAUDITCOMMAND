@@ -11,6 +11,8 @@ sites in nlq.py stay provider-agnostic.
 """
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -18,6 +20,8 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
 from backend.services import settings_store
+
+log = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -70,7 +74,11 @@ PROVIDER_LABEL = {
 PROVIDER_KEY_HINT = {
     "anthropic": "Get a key at console.anthropic.com — paid",
     "openai": "Get a key at platform.openai.com — paid",
-    "gemini": "Get a free key at aistudio.google.com/apikey — no card",
+    "gemini": (
+        "Get a free key at aistudio.google.com/apikey — no card. "
+        "Free tier limits per model: ~10 RPM and a few hundred RPD. "
+        "If you hit 429, switch to gemini-2.5-flash-lite for higher daily quota."
+    ),
 }
 
 
@@ -82,12 +90,39 @@ class LlmClient(Protocol):
                  max_tokens: int = 1024, temperature: float = 0.2) -> str: ...
 
 
+def _is_rate_limit(e: Exception) -> bool:
+    msg = str(e).lower()
+    name = type(e).__name__.lower()
+    return (
+        "429" in msg
+        or "resource_exhausted" in msg
+        or "rate limit" in msg
+        or "ratelimit" in name
+        or "quota" in msg
+    )
+
+
+def _retry_once_on_429(fn):
+    """Wrap a callable so a single 429 triggers one retry after ~3s."""
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001
+            if _is_rate_limit(e):
+                log.warning("LLM 429 — retrying once after 3s. Error: %s", e)
+                time.sleep(3.0)
+                return fn(*args, **kwargs)
+            raise
+    return wrapper
+
+
 @dataclass
 class _AnthropicClient:
     provider: str
     model: str
     api_key: str
 
+    @_retry_once_on_429
     def complete(self, *, system, user, max_tokens=1024, temperature=0.2):
         from anthropic import Anthropic
         c = Anthropic(api_key=self.api_key)
@@ -107,6 +142,7 @@ class _OpenAIClient:
     model: str
     api_key: str
 
+    @_retry_once_on_429
     def complete(self, *, system, user, max_tokens=1024, temperature=0.2):
         from openai import OpenAI
         c = OpenAI(api_key=self.api_key)
@@ -127,6 +163,7 @@ class _GeminiClient:
     model: str
     api_key: str
 
+    @_retry_once_on_429
     def complete(self, *, system, user, max_tokens=1024, temperature=0.2):
         from google import genai
         from google.genai import types
@@ -290,6 +327,44 @@ def get_status(db: Session) -> dict:
     }
 
 
+def humanise_provider_error(e: Exception) -> str:
+    """Translate provider exceptions into actionable single-line messages."""
+    msg = str(e)
+    name = type(e).__name__
+    short = msg if len(msg) <= 400 else msg[:400] + "…"
+    low = msg.lower()
+    if _is_rate_limit(e):
+        return (
+            f"{name}: provider quota or rate limit hit. "
+            "On Gemini's free tier this is per-minute and per-day — wait, switch to "
+            "gemini-2.5-flash-lite (higher daily quota), or pick a different "
+            "provider in Settings → AI Providers. "
+            f"Details: {short}"
+        )
+    if "not_found" in low or "404" in msg or "is not found" in low:
+        return (
+            f"{name}: model not available — likely retired by the provider. "
+            "Open Settings → AI Providers and pick a current model. "
+            f"Details: {short}"
+        )
+    if "401" in msg or "unauthorized" in low or "invalid_api_key" in low or "permission_denied" in low:
+        return (
+            f"{name}: API key rejected. Open Settings → AI Providers and re-enter the key. "
+            f"Details: {short}"
+        )
+    if "402" in msg or "billing" in low or "credit" in low or "insufficient_quota" in low:
+        return (
+            f"{name}: provider billing / credits issue. Add credits to your provider account. "
+            f"Details: {short}"
+        )
+    if "503" in msg or "unavailable" in low or "overloaded" in low:
+        return (
+            f"{name}: provider temporarily unavailable. Retry in a moment. "
+            f"Details: {short}"
+        )
+    return f"{name}: {short}"
+
+
 def test_provider(db: Session, provider: str) -> dict:
     """Make a tiny ping call to verify the provider key works."""
     if provider not in PROVIDERS:
@@ -313,8 +388,8 @@ def test_provider(db: Session, provider: str) -> dict:
             max_tokens=10, temperature=0,
         )
         return {"ok": True, "model": model, "sample": (text or "").strip()[:120]}
-    except Exception as e:  # noqa: BLE001 — surfaced verbatim to admin UI
-        return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": humanise_provider_error(e)}
 
 
 def save_provider(

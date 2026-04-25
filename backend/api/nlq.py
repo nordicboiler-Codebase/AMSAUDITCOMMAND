@@ -10,7 +10,7 @@ from backend.core.db import get_db
 from backend.core.rate_limit import nlq_rate_limit
 from backend.core.security import get_current_user
 from backend.models import User
-from backend.services import nlq
+from backend.services import llm, nlq
 
 router = APIRouter()
 
@@ -20,26 +20,7 @@ class NLQIn(BaseModel):
 
 
 def _friendly_error(e: Exception) -> str:
-    """Surface the model/provider error string to the UI without a stack."""
-    msg = str(e)
-    name = type(e).__name__
-    # Trim verbose google.genai / openai / anthropic exception payloads
-    if len(msg) > 400:
-        msg = msg[:400] + "…"
-    if "NOT_FOUND" in msg or "not found" in msg.lower() or "404" in msg:
-        return (
-            f"{name}: model not available. "
-            "The selected model may have been retired by the provider. "
-            "Open Settings → AI Providers and pick a current model. "
-            f"Details: {msg}"
-        )
-    if "401" in msg or "unauthorized" in msg.lower() or "invalid_api_key" in msg.lower():
-        return f"{name}: API key rejected. Open Settings → AI Providers and re-enter the key. Details: {msg}"
-    if "429" in msg or "rate" in msg.lower() and "limit" in msg.lower():
-        return f"{name}: provider rate-limit. Wait a moment and retry. Details: {msg}"
-    if "402" in msg or "billing" in msg.lower() or "credit" in msg.lower():
-        return f"{name}: billing / credits issue with the provider. Details: {msg}"
-    return f"{name}: {msg}"
+    return llm.humanise_provider_error(e)
 
 
 @router.get("/ai/status")
