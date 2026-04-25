@@ -7,6 +7,7 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { EngagementsPage } from "./pages/EngagementsPage";
+import { FindingDetailPage } from "./pages/FindingDetailPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MLFeedbackPage } from "./pages/MLFeedbackPage";
@@ -43,6 +44,7 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="engagements" element={<EngagementsPage />} />
         <Route path="findings" element={<FindingsPage />} />
+        <Route path="findings/:id" element={<FindingDetailPage />} />
         <Route path="schedules" element={<SchedulesPage />} />
         <Route path="datasets" element={<DatasetsPage />} />
         <Route path="connectors" element={<ConnectorsPage />} />

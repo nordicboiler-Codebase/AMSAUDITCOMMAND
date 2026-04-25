@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, Filter } from "lucide-react";
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { SeverityBadge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -126,6 +126,7 @@ export function FindingsPage() {
 }
 
 function FindingRow({ finding, onTransition }: { finding: Finding; onTransition: () => void }) {
+  const navigate = useNavigate();
   const mutation = useMutation({
     mutationFn: (status: string) =>
       api.post(`/api/findings/${finding.id}/transition`, { status }),
@@ -137,10 +138,13 @@ function FindingRow({ finding, onTransition }: { finding: Finding; onTransition:
     CONFIRMED: ["REMEDIATED", "ACCEPTED_RISK", "CARRIED_FORWARD"],
   };
   const next = nextStatuses[finding.status] || [];
+  const open = () => navigate(`/findings/${finding.id}`);
 
   return (
-    <tr className="hover:bg-secondary/30">
-      <td className="py-2 px-3 font-mono text-xs font-medium">{finding.code}</td>
+    <tr className="hover:bg-secondary/30 cursor-pointer" onClick={open}>
+      <td className="py-2 px-3 font-mono text-xs font-medium text-accent hover:underline">
+        {finding.code}
+      </td>
       <td className="py-2 px-3 truncate max-w-[420px]">{finding.title}</td>
       <td className="py-2 px-3"><SeverityBadge severity={finding.severity} /></td>
       <td className="py-2 px-3"><StatusBadge status={finding.status} /></td>
@@ -150,7 +154,7 @@ function FindingRow({ finding, onTransition }: { finding: Finding; onTransition:
       <td className="py-2 px-3 text-muted-foreground text-xs">{finding.due_date ?? "—"}</td>
       <td className="py-2 px-3">
         {next.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
             {next.map((s) => (
               <button
                 key={s}
