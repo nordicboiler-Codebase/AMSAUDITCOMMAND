@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Download, Upload } from "lucide-react";
+import { Database, Download, Play, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -116,6 +116,7 @@ export function DatasetsPage() {
 }
 
 function DatasetDetail({ dataset }: { dataset: Dataset | null }) {
+  const navigate = useNavigate();
   const { data: preview } = useQuery({
     queryKey: ["dataset-preview", dataset?.id],
     queryFn: () => api.get<{ columns: string[]; rows: Array<Record<string, unknown>> }>(
@@ -140,6 +141,26 @@ function DatasetDetail({ dataset }: { dataset: Dataset | null }) {
         <InfoRow label="Source" value={dataset.source_filename} mono />
         <InfoRow label="SHA-256" value={dataset.source_hash.slice(0, 24) + "…"} mono />
         <InfoRow label="Dataset ID" value={dataset.id.slice(0, 8) + "…"} mono />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button
+          variant="accent" size="sm"
+          onClick={() => {
+            localStorage.setItem("ts_active_dataset", dataset.id);
+            navigate("/run");
+          }}
+        >
+          <Play className="h-3.5 w-3.5" /> Run tests
+        </Button>
+        <Button
+          variant="outline" size="sm"
+          onClick={() => {
+            localStorage.setItem("ts_active_dataset", dataset.id);
+            navigate("/risk");
+          }}
+        >
+          Risk Explorer
+        </Button>
       </div>
       {preview && preview.rows.length > 0 && (
         <div className="mt-4">
