@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Download, FileText, MessageSquare, Paperclip, Send, Upload,
+  ArrowLeft, Copy, Download, FileText, MessageSquare, Paperclip, Send,
+  Sparkles, Upload,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -65,6 +66,29 @@ export function FindingDetailPage() {
 
   const [newComment, setNewComment] = useState("");
   const [transitionComment, setTransitionComment] = useState("");
+  const [aiNarrative, setAiNarrative] = useState<string | null>(null);
+
+  const draftNarrative = useMutation({
+    mutationFn: () => api.post<{ narrative: string }>(`/api/findings/${id}/narrative`),
+    onSuccess: (r) => setAiNarrative(r.narrative),
+    onError: (e) => toast({
+      kind: "error", title: "Couldn't draft narrative",
+      description: (e as Error).message,
+    }),
+  });
+
+  const replaceDescription = useMutation({
+    mutationFn: (newDesc: string) =>
+      api.patch(`/api/findings/${id}`, { description: newDesc }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finding", id] });
+      toast({ kind: "success", title: "Description updated" });
+      setAiNarrative(null);
+    },
+    onError: (e) => toast({
+      kind: "error", title: "Update failed", description: (e as Error).message,
+    }),
+  });
 
   const transition = useMutation({
     mutationFn: (status: string) =>
@@ -128,11 +152,75 @@ export function FindingDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <SectionCard title="Description">
+          <SectionCard
+            title="Description"
+            actions={
+              <Button
+                variant="outline" size="sm"
+                onClick={() => draftNarrative.mutate()}
+                disabled={draftNarrative.isPending}
+                title="Have Claude draft an audit-style write-up for this finding"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                {draftNarrative.isPending ? "Drafting…" : "AI draft"}
+              </Button>
+            }
+          >
             {finding.description ? (
               <div className="text-sm whitespace-pre-wrap leading-relaxed">{finding.description}</div>
             ) : (
               <div className="text-sm text-muted-foreground italic">No description.</div>
+            )}
+
+            {aiNarrative && (
+              <div className="mt-4 rounded-md border border-accent/40 bg-accent/[0.04] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="h-4 w-4 text-accent" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-accent">
+                    AI-drafted narrative
+                  </span>
+                </div>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
+                  {aiNarrative}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
+                    variant="accent" size="sm"
+                    onClick={() => replaceDescription.mutate(aiNarrative)}
+                    disabled={replaceDescription.isPending}
+                  >
+                    {replaceDescription.isPending ? "Saving…" : "Replace description"}
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => {
+                      const merged = (finding.description ? finding.description + "\n\n" : "") + aiNarrative;
+                      replaceDescription.mutate(merged);
+                    }}
+                    disabled={replaceDescription.isPending || !finding.description}
+                  >
+                    Append
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(aiNarrative);
+                      toast({ kind: "success", title: "Copied to clipboard" });
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" /> Copy
+                  </Button>
+                  <button
+                    onClick={() => setAiNarrative(null)}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground px-1"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <div className="mt-2 text-[11px] text-muted-foreground italic">
+                  Logged to the audit chain. Review before publishing.
+                </div>
+              </div>
             )}
           </SectionCard>
 

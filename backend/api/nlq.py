@@ -39,3 +39,11 @@ def narrative(run_id: uuid.UUID, db: Session = Depends(get_db),
               _rl: None = Depends(nlq_rate_limit)) -> dict:
     text = nlq.generate_narrative(db, test_run_id=run_id, user_id=user.id)
     return {"narrative": text}
+
+
+@router.post("/findings/{finding_id}/narrative")
+def finding_narrative(finding_id: uuid.UUID, db: Session = Depends(get_db),
+                      user: User = Depends(get_current_user),
+                      _rl: None = Depends(nlq_rate_limit)) -> dict:
+    text = nlq.generate_finding_narrative(db, finding_id=finding_id, user_id=user.id)
+    return {"narrative": text}

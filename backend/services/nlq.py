@@ -8,7 +8,7 @@ import polars as pl
 from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
-from backend.models import AuditAction, Dataset, TestRun
+from backend.models import AuditAction, Dataset, Finding, TestRun
 from backend.services import audit_log
 from backend.templates import catalog as tpl_catalog
 
@@ -125,12 +125,82 @@ def suggest_templates(db: Session, *, dataset_id: uuid.UUID, user_id: uuid.UUID,
     dataset = db.get(Dataset, dataset_id)
     if not dataset:
         raise ValueError("Dataset not found")
-    templates = tpl_catalog.list_templates(db, subledger=dataset.subledger_type)[:limit]
-    return [
-        {"template_code": t.code, "name": t.name, "detector_name": t.detector_name,
-         "params": t.default_params, "confidence": 0.5}
-        for t in templates
-    ]
+    candidates = tpl_catalog.list_templates(db, subledger=dataset.subledger_type)
+    client = _get_client()
+    if client is None or not candidates:
+        # Stub fallback — first N by subledger
+        return [
+            {"template_code": t.code, "name": t.name, "detector_name": t.detector_name,
+             "params": t.default_params, "confidence": 0.5,
+             "rationale": "Default ranking — Anthropic API key not configured."}
+            for t in candidates[:limit]
+        ]
+
+    catalog_block = "\n".join(
+        f"- {t.code}: {t.name} → detector={t.detector_name} | "
+        f"category={t.category.value} | weight={t.default_weight}"
+        for t in candidates
+    )
+    user_prompt = f"""DATASET CONTEXT:
+{_dataset_context(dataset)}
+
+CANDIDATE TEMPLATES (only these are valid):
+{catalog_block}
+
+Pick the {limit} highest-value tests an auditor should run on this dataset
+based on its subledger ({dataset.subledger_type.value}), schema columns,
+and visible patterns in the sample rows. Return ONLY valid JSON:
+
+{{"suggestions": [
+  {{"template_code": "...", "rationale": "1-2 sentences why this matters here", "confidence": 0.0-1.0}},
+  ...
+]}}
+
+Order from highest to lowest priority. Use only template_codes from the catalog above."""
+
+    resp = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=1500,
+        temperature=0.2,
+        system="You are an audit analytics assistant. Suggest the most valuable tests for an auditor to run, given a dataset's nature.",
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+    parsed: dict[str, Any] = {}
+    try:
+        start = text.index("{")
+        end = text.rindex("}") + 1
+        parsed = json.loads(text[start:end])
+    except (ValueError, json.JSONDecodeError):
+        parsed = {"suggestions": []}
+
+    by_code = {t.code: t for t in candidates}
+    out: list[dict] = []
+    for s in parsed.get("suggestions", [])[:limit]:
+        code = s.get("template_code")
+        tpl = by_code.get(code)
+        if not tpl:
+            continue
+        out.append({
+            "template_code": tpl.code,
+            "name": tpl.name,
+            "detector_name": tpl.detector_name,
+            "params": tpl.default_params,
+            "confidence": float(s.get("confidence", 0.5)),
+            "rationale": s.get("rationale", ""),
+        })
+
+    audit_log.log_action(
+        db, user_id=user_id, action=AuditAction.NLQ, entity_type="dataset",
+        entity_id=str(dataset_id),
+        details={
+            "model": settings.anthropic_model,
+            "kind": "suggest_templates",
+            "suggested": [s["template_code"] for s in out],
+        },
+    )
+    db.commit()
+    return out
 
 
 def generate_narrative(db: Session, *, test_run_id: uuid.UUID, user_id: uuid.UUID) -> str:
@@ -161,6 +231,75 @@ Keep factual, avoid speculation, suggest follow-up."""
         db, user_id=user_id, action=AuditAction.NLQ, entity_type="test_run",
         entity_id=str(run.id),
         details={"narrative_generated": True, "model": settings.anthropic_model},
+    )
+    db.commit()
+    return text
+
+
+def generate_finding_narrative(
+    db: Session, *, finding_id: uuid.UUID, user_id: uuid.UUID,
+) -> str:
+    f = db.get(Finding, finding_id)
+    if not f:
+        raise ValueError("Finding not found")
+
+    client = _get_client()
+    record_sample = (f.record_keys or [])[:20]
+    template_codes = list(f.linked_template_codes or [])
+
+    if client is None:
+        return (
+            f"Finding {f.code}: {f.title}. Severity {f.severity.value}. "
+            f"{len(f.record_keys or [])} record(s) flagged"
+            + (f" by templates {', '.join(template_codes)}" if template_codes else "")
+            + ". Auditor review recommended. "
+            "(Stub: configure ANTHROPIC_API_KEY for AI-drafted narratives.)"
+        )
+
+    template_block = ""
+    if template_codes:
+        rows = tpl_catalog.list_templates(db)
+        by_code = {t.code: t for t in rows}
+        descs = []
+        for c in template_codes:
+            t = by_code.get(c)
+            if t:
+                descs.append(f"- {t.code}: {t.name} (detector={t.detector_name})")
+        if descs:
+            template_block = "\nLinked templates:\n" + "\n".join(descs)
+
+    prompt = f"""Draft a 2-3 paragraph audit finding write-up in professional
+audit report style.
+
+Finding code: {f.code}
+Title: {f.title}
+Severity: {f.severity.value}
+Status: {f.status.value}
+Records flagged: {len(f.record_keys or [])}
+Sample record keys: {record_sample}
+Existing description: {f.description or "(none)"}
+{template_block}
+
+The narrative should:
+- State the issue and why it matters
+- Reference the type of analytical test that detected it
+- Note the potential impact (control weakness, fraud risk, error, compliance gap)
+- Suggest specific follow-up procedures for the auditor
+- Stay factual; avoid speculation about intent
+- Be ready to paste directly into a workpaper."""
+
+    resp = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=900,
+        temperature=0.3,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+    audit_log.log_action(
+        db, user_id=user_id, action=AuditAction.NLQ, entity_type="finding",
+        entity_id=str(f.id),
+        details={"narrative_generated": True, "model": settings.anthropic_model,
+                 "kind": "finding_narrative"},
     )
     db.commit()
     return text

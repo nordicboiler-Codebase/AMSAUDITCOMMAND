@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowLeft, FileSearch, ListChecks,
+  AlertTriangle, ArrowLeft, Copy, FileSearch, ListChecks, Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -39,6 +39,17 @@ export function TestRunDetailPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchOpen, setBatchOpen] = useState(false);
+  const [narrative, setNarrative] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const draftNarrative = useMutation({
+    mutationFn: () => api.post<{ narrative: string }>(`/api/test-runs/${id}/narrative`),
+    onSuccess: (r) => setNarrative(r.narrative),
+    onError: (e) => toast({
+      kind: "error", title: "Couldn't draft narrative",
+      description: (e as Error).message,
+    }),
+  });
 
   if (!run) return null;
 
@@ -59,6 +70,17 @@ export function TestRunDetailPage() {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge status={run.status || "PENDING"} />
+            {run.status === "COMPLETED" && (
+              <Button
+                variant="outline"
+                onClick={() => draftNarrative.mutate()}
+                disabled={draftNarrative.isPending}
+                title="Have Claude draft an audit-style narrative for this run"
+              >
+                <Sparkles className="h-4 w-4 text-accent" />
+                {draftNarrative.isPending ? "Drafting…" : "AI draft"}
+              </Button>
+            )}
             {run.findings_count > 0 && (
               <Button
                 variant="accent"
@@ -72,6 +94,49 @@ export function TestRunDetailPage() {
           </div>
         }
       />
+
+      {narrative && (
+        <SectionCard
+          title="AI-drafted narrative"
+          className="mb-4 border-accent/30 bg-accent/[0.03]"
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline" size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(narrative);
+                  toast({ kind: "success", title: "Copied to clipboard" });
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" /> Copy
+              </Button>
+              {run.findings_count > 0 && (
+                <Button
+                  variant="accent" size="sm"
+                  onClick={() => setBatchOpen(true)}
+                  disabled={selected.size === 0}
+                  title={selected.size === 0 ? "Select rows first" : "Use this narrative as the finding description"}
+                >
+                  Use as finding →
+                </Button>
+              )}
+              <button
+                onClick={() => setNarrative(null)}
+                className="text-xs text-muted-foreground hover:text-foreground px-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          }
+        >
+          <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
+            {narrative}
+          </div>
+          <div className="mt-3 text-[11px] text-muted-foreground italic">
+            Draft by Claude — review before publishing. Logged to the audit chain.
+          </div>
+        </SectionCard>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <MetricCard
@@ -227,6 +292,7 @@ export function TestRunDetailPage() {
           runId={id}
           run={run}
           recordKeys={Array.from(selected)}
+          initialDescription={narrative ?? undefined}
           onClose={() => setBatchOpen(false)}
         />
       )}
@@ -244,11 +310,12 @@ function Row({ label, value, mono }: { label: string; value: React.ReactNode; mo
 }
 
 function BatchCreateFindingDialog({
-  runId, run, recordKeys, onClose,
+  runId, run, recordKeys, initialDescription, onClose,
 }: {
   runId: string;
   run: TestRun & { dataset_id: string };
   recordKeys: string[];
+  initialDescription?: string;
   onClose: () => void;
 }) {
   const navigate = useNavigate();
@@ -262,10 +329,11 @@ function BatchCreateFindingDialog({
     `${recordKeys.length} record${recordKeys.length === 1 ? "" : "s"} flagged by ${detectorTitle}`,
   );
   const [description, setDescription] = useState(
-    `Auto-aggregated finding from test run ${runId.slice(0, 8)}.\n\n` +
-    `Detector: ${run.detector_name}\n` +
-    `Template: ${run.template_code || "n/a"}\n` +
-    `Records flagged: ${recordKeys.length}`,
+    initialDescription ??
+    (`Auto-aggregated finding from test run ${runId.slice(0, 8)}.\n\n` +
+     `Detector: ${run.detector_name}\n` +
+     `Template: ${run.template_code || "n/a"}\n` +
+     `Records flagged: ${recordKeys.length}`),
   );
   const [severity, setSeverity] = useState(defaultSeverity);
   const [project, setProject] = useState(projectIdFromStorage || "");

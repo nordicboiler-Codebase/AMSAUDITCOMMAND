@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Play, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowRight, Play, Search, Sparkles, Wand2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { api, type TestRun } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 
-type Tab = "template" | "pack" | "detector";
+type Tab = "ai" | "template" | "pack" | "detector";
 
 interface TemplateRow {
   code: string;
@@ -19,6 +19,24 @@ interface TemplateRow {
   subledger_type?: string;
   default_weight: number;
   default_params: Record<string, unknown>;
+}
+
+interface NlqResult {
+  template_code?: string;
+  params?: Record<string, unknown>;
+  rationale?: string;
+  confidence?: number;
+  error?: string;
+  raw?: string;
+}
+
+interface SuggestRow {
+  template_code: string;
+  name: string;
+  detector_name: string;
+  params: Record<string, unknown>;
+  confidence: number;
+  rationale?: string;
 }
 
 interface PackRow {
@@ -44,10 +62,12 @@ interface DetectorMeta {
 
 export function RunPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
-  const [tab, setTab] = useState<Tab>("template");
+  const [tab, setTab] = useState<Tab>("ai");
   const [datasetId, setDatasetId] = useState<string>(
     () => localStorage.getItem("ts_active_dataset") || "",
   );
+  // Hand-off so the AI tab can pre-select a template on the Template tab.
+  const [aiPrefill, setAiPrefill] = useState<{ code: string; params: Record<string, unknown> } | null>(null);
 
   const { data: datasets = [] } = useQuery({
     queryKey: ["datasets", activeProjectId],
@@ -105,6 +125,7 @@ export function RunPage() {
 
       <div className="flex gap-1 border-b mb-4">
         {([
+          ["ai", "Ask AI"],
           ["template", "Single template"],
           ["pack", "Pack"],
           ["detector", "Custom detector"],
@@ -117,13 +138,28 @@ export function RunPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
+            {t === "ai" && <Sparkles className="h-3.5 w-3.5 inline -translate-y-px mr-1 text-accent" />}
             {label}
           </button>
         ))}
       </div>
 
+      {tab === "ai" && (
+        <AiTab
+          datasetId={datasetId}
+          onPickTemplate={(code, params) => {
+            setAiPrefill({ code, params });
+            setTab("template");
+          }}
+        />
+      )}
       {tab === "template" && (
-        <TemplateTab datasetId={datasetId} subledger={activeDataset?.subledger_type} />
+        <TemplateTab
+          datasetId={datasetId}
+          subledger={activeDataset?.subledger_type}
+          prefill={aiPrefill}
+          onConsumePrefill={() => setAiPrefill(null)}
+        />
       )}
       {tab === "pack" && (
         <PackTab datasetId={datasetId} subledger={activeDataset?.subledger_type} />
@@ -133,9 +169,173 @@ export function RunPage() {
   );
 }
 
+// ----------- AI tab — natural language + suggested templates -----------
+
+function AiTab({
+  datasetId, onPickTemplate,
+}: {
+  datasetId: string;
+  onPickTemplate: (code: string, params: Record<string, unknown>) => void;
+}) {
+  const { toast } = useToast();
+  const [question, setQuestion] = useState("");
+
+  const ask = useMutation({
+    mutationFn: () => api.post<NlqResult>(
+      `/api/datasets/${datasetId}/nlq`, { question },
+    ),
+    onError: (e) => toast({ kind: "error", title: "Claude couldn't help", description: (e as Error).message }),
+  });
+
+  const suggest = useMutation({
+    mutationFn: () => api.post<SuggestRow[]>(`/api/datasets/${datasetId}/suggest-templates`),
+    onError: (e) => toast({ kind: "error", title: "Suggest failed", description: (e as Error).message }),
+  });
+
+  const result = ask.data;
+  const suggestions = suggest.data || [];
+
+  if (!datasetId) {
+    return (
+      <SectionCard>
+        <div className="text-sm text-muted-foreground py-10 text-center">
+          Pick a dataset above to ask Claude what to test.
+        </div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Ask Claude in plain English"
+        description="Describe what you want to test — Claude will pick the best template from the catalog and pre-fill its parameters."
+      >
+        <div className="flex gap-2">
+          <Input
+            placeholder="e.g. flag AP invoices paid on weekends above $10,000 to first-time vendors"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && question.trim() && !ask.isPending) ask.mutate();
+            }}
+            className="flex-1"
+            autoFocus
+          />
+          <Button
+            onClick={() => ask.mutate()}
+            disabled={!question.trim() || ask.isPending}
+          >
+            <Sparkles className="h-4 w-4" />
+            {ask.isPending ? "Thinking…" : "Ask"}
+          </Button>
+        </div>
+
+        {result && !result.error && result.template_code && (
+          <div className="mt-4 rounded-md border border-accent/30 bg-accent/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-accent" />
+                  <span className="font-mono text-xs font-bold">{result.template_code}</span>
+                  {typeof result.confidence === "number" && (
+                    <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-secondary text-muted-foreground">
+                      confidence {(result.confidence * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                {result.rationale && (
+                  <div className="text-sm mt-2">{result.rationale}</div>
+                )}
+                {result.params && Object.keys(result.params).length > 0 && (
+                  <pre className="mt-2 text-[11px] font-mono bg-card border rounded p-2 overflow-auto max-h-40">
+                    {JSON.stringify(result.params, null, 2)}
+                  </pre>
+                )}
+              </div>
+              <Button
+                variant="accent" size="sm"
+                onClick={() => onPickTemplate(result.template_code!, result.params || {})}
+              >
+                <Wand2 className="h-3.5 w-3.5" /> Use this template
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {result && (result.error || !result.template_code) && (
+          <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            Claude couldn't pick a template.{result.error ? ` ${result.error}` : ""}
+            {result.raw && (
+              <pre className="text-[11px] font-mono mt-2 max-h-40 overflow-auto">{result.raw}</pre>
+            )}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Or — let Claude suggest the highest-value tests"
+        description="Claude looks at the dataset's schema + sample rows and ranks the most useful templates to run."
+        actions={
+          <Button
+            variant="outline" size="sm"
+            onClick={() => suggest.mutate()}
+            disabled={suggest.isPending}
+          >
+            <Sparkles className="h-4 w-4" />
+            {suggest.isPending ? "Ranking…" : suggestions.length ? "Refresh" : "Suggest"}
+          </Button>
+        }
+      >
+        {suggestions.length === 0 ? (
+          <div className="text-sm text-muted-foreground italic py-4">
+            Click "Suggest" to see Claude's top picks for this dataset.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {suggestions.map((s, i) => (
+              <div
+                key={s.template_code}
+                className="flex items-start gap-3 rounded-md border bg-card p-3 hover:shadow-sm transition-shadow"
+              >
+                <div className="text-xs text-muted-foreground font-mono w-5 mt-0.5">{i + 1}.</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold">{s.template_code}</span>
+                    <span className="text-sm">{s.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {(s.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  {s.rationale && (
+                    <div className="text-xs text-muted-foreground mt-1">{s.rationale}</div>
+                  )}
+                </div>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => onPickTemplate(s.template_code, s.params)}
+                >
+                  Use <ArrowRight className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
 // ----------- Template tab with searchable picker -----------
 
-function TemplateTab({ datasetId, subledger }: { datasetId: string; subledger?: string }) {
+function TemplateTab({
+  datasetId, subledger, prefill, onConsumePrefill,
+}: {
+  datasetId: string;
+  subledger?: string;
+  prefill?: { code: string; params: Record<string, unknown> } | null;
+  onConsumePrefill?: () => void;
+}) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -156,6 +356,16 @@ function TemplateTab({ datasetId, subledger }: { datasetId: string; subledger?: 
     return fromStorage || "";
   });
   const [overrides, setOverrides] = useState("{}");
+
+  // Hand-off from the AI tab: pre-select the chosen template and pre-fill overrides.
+  useEffect(() => {
+    if (prefill) {
+      setCode(prefill.code);
+      setOverrides(JSON.stringify(prefill.params || {}, null, 2));
+      onConsumePrefill?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.code]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
