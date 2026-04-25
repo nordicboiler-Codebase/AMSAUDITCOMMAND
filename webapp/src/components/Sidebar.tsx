@@ -1,7 +1,7 @@
 import {
-  Building2, Clock, Database, FileSearch, FolderKanban, History,
-  LayoutDashboard, Package, Play, Settings, Shield, ShieldCheck, Sparkles,
-  Target, Users,
+  Activity, Building2, Cable, Clock, Database, FileSearch, FolderKanban,
+  History, LayoutDashboard, Package, Play, Settings, Shield, ShieldCheck,
+  Sparkles, Target, Users,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -34,9 +34,11 @@ const NAV: NavGroup[] = [
     label: "Data & analysis",
     items: [
       { to: "/datasets", label: "Datasets", icon: Database },
+      { to: "/connectors", label: "Connectors", icon: Cable },
       { to: "/run", label: "Run tests", icon: Play },
       { to: "/risk", label: "Risk Explorer", icon: Target },
       { to: "/runs", label: "Test runs", icon: History },
+      { to: "/monitors", label: "Monitors", icon: Activity },
     ],
   },
   {

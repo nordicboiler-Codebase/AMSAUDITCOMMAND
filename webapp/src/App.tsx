@@ -11,6 +11,8 @@ import { FindingsPage } from "./pages/FindingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MLFeedbackPage } from "./pages/MLFeedbackPage";
 import { PacksPage } from "./pages/PacksPage";
+import { ConnectorsPage } from "./pages/ConnectorsPage";
+import { MonitorsPage } from "./pages/MonitorsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RiskExplorerPage } from "./pages/RiskExplorerPage";
 import { RunPage } from "./pages/RunPage";
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="findings" element={<FindingsPage />} />
         <Route path="schedules" element={<SchedulesPage />} />
         <Route path="datasets" element={<DatasetsPage />} />
+        <Route path="connectors" element={<ConnectorsPage />} />
+        <Route path="monitors" element={<MonitorsPage />} />
         <Route path="run" element={<RunPage />} />
         <Route path="risk" element={<RiskExplorerPage />} />
         <Route path="runs" element={<TestRunsPage />} />
