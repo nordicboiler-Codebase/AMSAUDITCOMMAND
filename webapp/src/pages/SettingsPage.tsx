@@ -49,7 +49,7 @@ export function SettingsPage() {
 }
 
 interface AiProvider {
-  provider: "anthropic" | "openai" | "gemini";
+  provider: "anthropic" | "openai" | "gemini" | "groq";
   label: string;
   key_hint: string;
   enabled: boolean;
@@ -74,6 +74,7 @@ const PROVIDER_DOC_URL: Record<string, string> = {
   anthropic: "https://console.anthropic.com/settings/keys",
   openai: "https://platform.openai.com/api-keys",
   gemini: "https://aistudio.google.com/apikey",
+  groq: "https://console.groq.com/keys",
 };
 
 function AiProvidersTab() {
@@ -187,9 +188,10 @@ function AiProvidersTab() {
           </div>
           <ol className="list-decimal pl-5 space-y-1.5 text-muted-foreground">
             <li>
-              Pick a provider below. <span className="text-foreground font-medium">Google Gemini</span> is the
-              easiest — free key with no credit card from{" "}
-              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-accent hover:underline">aistudio.google.com/apikey</a>.
+              Pick a provider below. <span className="text-foreground font-medium">Groq</span> is the
+              best free option — generous quota (~14k requests/day), fastest inference, no
+              credit card. Get a key at{" "}
+              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-accent hover:underline">console.groq.com/keys</a>.
             </li>
             <li>Click <span className="text-foreground font-medium">Set key</span>, paste it, tick <span className="text-foreground font-medium">Enable</span>.</li>
             <li>Pick that provider as <span className="text-foreground font-medium">Active</span> above, then click <span className="text-foreground font-medium">Save AI settings</span>.</li>
@@ -217,9 +219,9 @@ docker-compose up -d app`}
 
       <SectionCard
         title="Active provider"
-        description="Which provider Claude features in this app should call. You can pre-select a provider whose SDK isn't loaded yet — it'll activate as soon as the backend restarts."
+        description="Which provider AI features in this app should call. You can pre-select a provider whose SDK isn't loaded yet — it'll activate as soon as the backend restarts."
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {settings.providers.map((p) => {
             // A provider can be selected as active if the SDK is loaded
             // OR if the user has at least supplied a key (so they can pre-stage).

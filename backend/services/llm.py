@@ -28,12 +28,13 @@ settings = get_settings()
 CATEGORY = "ai_providers"
 SECRET_FIELDS = {"api_key"}
 
-PROVIDERS = ("anthropic", "openai", "gemini")
+PROVIDERS = ("anthropic", "openai", "gemini", "groq")
 
 DEFAULT_MODEL = {
     "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-4o-mini",
     "gemini": "gemini-2.5-flash",
+    "groq": "llama-3.3-70b-versatile",
 }
 
 # Suggested models surfaced in the UI dropdown (for guidance only).
@@ -52,6 +53,13 @@ MODEL_CHOICES = {
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
     ],
+    "groq": [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "llama-3.2-90b-vision-preview",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it",
+    ],
 }
 
 # Models we know Google has retired — silently rewrite to DEFAULT_MODEL.
@@ -69,6 +77,7 @@ PROVIDER_LABEL = {
     "anthropic": "Anthropic Claude",
     "openai": "OpenAI",
     "gemini": "Google Gemini (free tier available)",
+    "groq": "Groq (free tier — Llama / Mixtral / Gemma)",
 }
 
 PROVIDER_KEY_HINT = {
@@ -78,6 +87,13 @@ PROVIDER_KEY_HINT = {
         "Get a free key at aistudio.google.com/apikey — no card. "
         "Free tier limits per model: ~10 RPM and a few hundred RPD. "
         "If you hit 429, switch to gemini-2.5-flash-lite for higher daily quota."
+    ),
+    "groq": (
+        "Get a free key at console.groq.com — no card. "
+        "Free tier is generous (~14,400 req/day across all models, ~30 req/min). "
+        "Inference is the fastest of any provider. "
+        "Note: Groq is no-train on API traffic but not the same enterprise "
+        "compliance as Bedrock / Vertex — pick a paid provider for regulated data."
     ),
 }
 
@@ -141,11 +157,12 @@ class _OpenAIClient:
     provider: str
     model: str
     api_key: str
+    base_url: str | None = None  # set for OpenAI-compatible providers (Groq, etc.)
 
     @_retry_once_on_429
     def complete(self, *, system, user, max_tokens=1024, temperature=0.2):
         from openai import OpenAI
-        c = OpenAI(api_key=self.api_key)
+        c = OpenAI(api_key=self.api_key, base_url=self.base_url)
         msgs: list[dict[str, str]] = []
         if system:
             msgs.append({"role": "system", "content": system})
@@ -155,6 +172,9 @@ class _OpenAIClient:
             max_tokens=max_tokens, temperature=temperature,
         )
         return resp.choices[0].message.content or ""
+
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
 @dataclass
@@ -183,7 +203,8 @@ def _sdk_installed(provider: str) -> bool:
     try:
         if provider == "anthropic":
             import anthropic  # noqa: F401
-        elif provider == "openai":
+        elif provider in ("openai", "groq"):
+            # Groq exposes an OpenAI-compatible API; we reuse the openai SDK.
             import openai  # noqa: F401
         elif provider == "gemini":
             from google import genai  # noqa: F401
@@ -270,6 +291,8 @@ def get_active_client(db: Session) -> LlmClient | None:
         return _AnthropicClient(provider=active, model=model, api_key=cfg["api_key"])
     if active == "openai":
         return _OpenAIClient(provider=active, model=model, api_key=cfg["api_key"])
+    if active == "groq":
+        return _OpenAIClient(provider=active, model=model, api_key=cfg["api_key"], base_url=GROQ_BASE_URL)
     if active == "gemini":
         return _GeminiClient(provider=active, model=model, api_key=cfg["api_key"])
     return None
@@ -381,6 +404,8 @@ def test_provider(db: Session, provider: str) -> dict:
             client: LlmClient = _AnthropicClient(provider, model, cfg["api_key"])
         elif provider == "openai":
             client = _OpenAIClient(provider, model, cfg["api_key"])
+        elif provider == "groq":
+            client = _OpenAIClient(provider, model, cfg["api_key"], base_url=GROQ_BASE_URL)
         else:
             client = _GeminiClient(provider, model, cfg["api_key"])
         text = client.complete(
