@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, RefreshCw, Target } from "lucide-react";
-import { useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { SeverityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -20,12 +20,16 @@ function sev(score: number) {
 export function RiskExplorerPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const recordParam = searchParams.get("record");
   const [datasetId, setDatasetId] = useState<string | null>(
     () => localStorage.getItem("ts_active_dataset"),
   );
-  const [minScore, setMinScore] = useState(50);
+  const [minScore, setMinScore] = useState(recordParam ? 0 : 50);
   const [selected, setSelected] = useState<RiskScore | null>(null);
   const [createForRecord, setCreateForRecord] = useState<RiskScore | null>(null);
+  const highlightedRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const { data: datasets = [] } = useQuery({
     queryKey: ["datasets", activeProjectId],
@@ -41,6 +45,19 @@ export function RiskExplorerPage() {
     ),
     enabled: !!datasetId,
   });
+
+  // When ?record= is present and scores load, auto-select & scroll into view.
+  useEffect(() => {
+    if (!recordParam || !scores.length || selected) return;
+    const found = scores.find((s) => s.record_key === recordParam);
+    if (found) {
+      setSelected(found);
+      // scroll after paint
+      setTimeout(() => {
+        highlightedRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    }
+  }, [recordParam, scores, selected]);
 
   async function runEnsemble() {
     if (!datasetId) return;
@@ -144,9 +161,12 @@ export function RiskExplorerPage() {
                   {scores.map((r) => (
                     <tr
                       key={r.record_key}
+                      ref={selected?.record_key === r.record_key ? highlightedRowRef : null}
                       onClick={() => setSelected(r)}
                       className={`cursor-pointer hover:bg-secondary/30 ${
                         selected?.record_key === r.record_key ? "bg-secondary/40" : ""
+                      } ${
+                        recordParam === r.record_key ? "ring-2 ring-accent ring-inset" : ""
                       }`}
                     >
                       <td className="py-2 px-3 font-mono text-xs truncate max-w-[200px]">{r.record_key}</td>
@@ -191,7 +211,16 @@ export function RiskExplorerPage() {
                     <div key={i} className="text-sm border-l-2 border-accent pl-3 py-1">
                       <div className="font-medium">{c.detector_name}</div>
                       <div className="text-xs text-muted-foreground">
-                        template {c.template_code || "n/a"} · weight {c.weight?.toFixed(1) ?? "—"}
+                        template{" "}
+                        {c.template_code ? (
+                          <button
+                            onClick={() => navigate(`/templates?code=${encodeURIComponent(c.template_code!)}`)}
+                            className="font-mono text-accent hover:underline"
+                          >
+                            {c.template_code}
+                          </button>
+                        ) : "n/a"}{" "}
+                        · weight {c.weight?.toFixed(1) ?? "—"}
                       </div>
                       {c.reason && <div className="text-xs mt-1">{c.reason}</div>}
                     </div>

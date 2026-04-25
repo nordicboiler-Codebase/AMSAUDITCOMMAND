@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Plus } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { SeverityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { useToast } from "@/lib/toast";
 
 export function SubsidiariesPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   const { data: subs = [] } = useQuery({
@@ -47,7 +49,11 @@ export function SubsidiariesPage() {
             {subs.map((s) => {
               const r = rollupMap[s.code];
               return (
-                <div key={s.id} className="rounded-lg border bg-card p-4 hover:shadow-md transition-shadow">
+                <button
+                  key={s.id}
+                  onClick={() => navigate(`/findings?subsidiary=${encodeURIComponent(s.code)}`)}
+                  className="text-left rounded-lg border bg-card p-4 hover:shadow-md hover:border-accent/40 transition-shadow"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
@@ -86,7 +92,7 @@ export function SubsidiariesPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>

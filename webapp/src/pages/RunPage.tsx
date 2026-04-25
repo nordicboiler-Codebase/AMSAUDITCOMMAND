@@ -150,7 +150,11 @@ function TemplateTab({ datasetId, subledger }: { datasetId: string; subledger?: 
   });
 
   const [search, setSearch] = useState("");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() => {
+    const fromStorage = sessionStorage.getItem("ts_run_template_code");
+    if (fromStorage) sessionStorage.removeItem("ts_run_template_code");
+    return fromStorage || "";
+  });
   const [overrides, setOverrides] = useState("{}");
 
   const filtered = useMemo(() => {

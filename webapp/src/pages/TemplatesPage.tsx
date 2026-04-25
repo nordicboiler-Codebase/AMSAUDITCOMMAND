@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Package, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Package, Play, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
@@ -27,9 +29,12 @@ const SUBLEDGERS = [
 const CATEGORIES = ["", "DATA_QUALITY", "FRAUD", "COMPLIANCE", "ANALYTICAL"];
 
 export function TemplatesPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const codeParam = searchParams.get("code") || "";
   const [subledger, setSubledger] = useState("");
   const [category, setCategory] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(codeParam);
   const [selected, setSelected] = useState<Template | null>(null);
 
   const { data: all = [] } = useQuery({
@@ -40,6 +45,14 @@ export function TemplatesPage() {
       return api.get<Template[]>(`/api/templates?${p.toString()}`);
     },
   });
+
+  // Auto-select template specified in ?code= once data is available.
+  useEffect(() => {
+    if (codeParam && all.length && !selected) {
+      const match = all.find((t) => t.code === codeParam);
+      if (match) setSelected(match);
+    }
+  }, [codeParam, all, selected]);
 
   const templates = useMemo(() => {
     return all.filter((t) => {
@@ -143,6 +156,15 @@ export function TemplatesPage() {
               <>
                 <div className="text-base font-semibold">{selected.name}</div>
                 <div className="text-xs text-muted-foreground mt-1">{selected.description}</div>
+                <Button
+                  variant="accent" size="sm" className="w-full mt-3"
+                  onClick={() => {
+                    sessionStorage.setItem("ts_run_template_code", selected.code);
+                    navigate("/run");
+                  }}
+                >
+                  <Play className="h-4 w-4" /> Run this template
+                </Button>
                 <div className="mt-4 space-y-2 text-xs">
                   <InfoRow label="Detector" value={selected.detector_name} mono />
                   <InfoRow label="Category" value={selected.category} />

@@ -243,15 +243,33 @@ export function FindingDetailPage() {
           {finding.record_keys.length > 0 && (
             <SectionCard title={`Records (${finding.record_keys.length})`}>
               <div className="space-y-1 text-xs font-mono">
-                {finding.record_keys.slice(0, 20).map((k) => (
-                  <Link
-                    key={k}
-                    to={finding.dataset_id ? `/risk` : "#"}
-                    className="block px-2 py-1 rounded bg-secondary hover:bg-secondary/70 truncate"
-                  >
-                    {k}
-                  </Link>
-                ))}
+                {finding.record_keys.slice(0, 20).map((k) => {
+                  const target = finding.dataset_id
+                    ? `/risk?record=${encodeURIComponent(k)}`
+                    : null;
+                  return target ? (
+                    <Link
+                      key={k}
+                      to={target}
+                      className="block px-2 py-1 rounded bg-secondary hover:bg-secondary/70 truncate"
+                      title="Open in Risk Explorer"
+                    >
+                      {k}
+                    </Link>
+                  ) : (
+                    <div
+                      key={k}
+                      className="block px-2 py-1 rounded bg-secondary truncate"
+                    >
+                      {k}
+                    </div>
+                  );
+                })}
+                {finding.record_keys.length > 20 && (
+                  <div className="text-[11px] text-muted-foreground px-2 pt-1">
+                    +{finding.record_keys.length - 20} more…
+                  </div>
+                )}
               </div>
             </SectionCard>
           )}
@@ -261,7 +279,7 @@ export function FindingDetailPage() {
               <div className="flex flex-wrap gap-1.5">
                 {finding.linked_template_codes.map((c) => (
                   <Link
-                    key={c} to="/templates"
+                    key={c} to={`/templates?code=${encodeURIComponent(c)}`}
                     className="inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-xs font-mono hover:bg-accent/20"
                   >
                     {c}

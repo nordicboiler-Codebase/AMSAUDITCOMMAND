@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.models import (
-    AuditAction, Finding, FindingComment, FindingSeverity, FindingStatus, User,
+    AuditAction, Finding, FindingComment, FindingSeverity, FindingStatus, Project, User,
 )
 from backend.services import acl, audit_log
 
@@ -81,6 +81,7 @@ def create_finding(
 def list_findings(
     db: Session, *, user: User, project_id: uuid.UUID | None = None,
     status: FindingStatus | None = None, severity: FindingSeverity | None = None,
+    subsidiary_code: str | None = None,
 ) -> list[Finding]:
     q = select(Finding)
     if project_id is not None:
@@ -95,6 +96,13 @@ def list_findings(
         q = q.where(Finding.status == status)
     if severity:
         q = q.where(Finding.severity == severity)
+    if subsidiary_code:
+        sub_project_ids = db.execute(
+            select(Project.id).where(Project.subsidiary_code == subsidiary_code)
+        ).scalars().all()
+        if not sub_project_ids:
+            return []
+        q = q.where(Finding.project_id.in_(sub_project_ids))
     q = q.order_by(Finding.created_at.desc())
     return list(db.execute(q).scalars())
 

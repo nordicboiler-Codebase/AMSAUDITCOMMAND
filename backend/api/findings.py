@@ -59,12 +59,16 @@ def list_findings(
     project_id: uuid.UUID | None = None,
     status: FindingStatus | None = None,
     severity: FindingSeverity | None = None,
+    subsidiary_code: str | None = None,
     offset: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[dict]:
-    rows = svc.list_findings(db, user=user, project_id=project_id, status=status, severity=severity)
+    rows = svc.list_findings(
+        db, user=user, project_id=project_id, status=status, severity=severity,
+        subsidiary_code=subsidiary_code,
+    )
     limit = min(limit, 500)
     return [_out(f) for f in rows[offset: offset + limit]]
 

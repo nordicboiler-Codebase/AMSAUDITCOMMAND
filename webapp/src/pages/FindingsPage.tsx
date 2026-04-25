@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSearch, Filter } from "lucide-react";
-import { useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { SeverityBadge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -18,20 +18,37 @@ const SEVERITIES = ["", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
 export function FindingsPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
   const qc = useQueryClient();
-  const [status, setStatus] = useState("");
-  const [severity, setSeverity] = useState("");
+  const [searchParams] = useSearchParams();
+  // initial values from URL — supports ?severity=HIGH,CRITICAL or ?status=DRAFT,UNDER_REVIEW
+  const initialSeverity = (searchParams.get("severity") || "").split(",")[0];
+  const initialStatus = (searchParams.get("status") || "").split(",")[0];
+  const subsidiaryCode = searchParams.get("subsidiary") || "";
+  const [status, setStatus] = useState(initialStatus);
+  const [severity, setSeverity] = useState(initialSeverity);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const s = (searchParams.get("severity") || "").split(",")[0];
+    const st = (searchParams.get("status") || "").split(",")[0];
+    if (s) setSeverity(s);
+    if (st) setStatus(st);
+  }, [searchParams]);
 
+  // When filtering by subsidiary, scope is group-wide; ignore activeProjectId.
+  const scopeKey = subsidiaryCode ? `sub:${subsidiaryCode}` : (activeProjectId ?? "");
   const query = useQuery({
-    queryKey: ["findings", activeProjectId, status, severity],
+    queryKey: ["findings", scopeKey, status, severity],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (activeProjectId) params.set("project_id", activeProjectId);
+      if (subsidiaryCode) {
+        params.set("subsidiary_code", subsidiaryCode);
+      } else if (activeProjectId) {
+        params.set("project_id", activeProjectId);
+      }
       if (status) params.set("status", status);
       if (severity) params.set("severity", severity);
       return api.get<Finding[]>(`/api/findings?${params.toString()}`);
     },
-    enabled: !!activeProjectId,
+    enabled: !!subsidiaryCode || !!activeProjectId,
   });
   const findings = query.data ?? [];
 
@@ -40,7 +57,7 @@ export function FindingsPage() {
     return acc;
   }, {});
 
-  if (!activeProjectId) {
+  if (!activeProjectId && !subsidiaryCode) {
     return (
       <>
         <PageHeader title="Findings" description="Every flagged issue. Maker-checker enforced." />
@@ -57,8 +74,16 @@ export function FindingsPage() {
     <>
       <PageHeader
         title="Findings"
-        description="Every flagged issue. Maker creates DRAFT; an independent reviewer confirms/closes."
-        actions={<Button onClick={() => setOpen(true)}>Create finding</Button>}
+        description={
+          subsidiaryCode
+            ? `Group-scoped view — subsidiary ${subsidiaryCode}.`
+            : "Every flagged issue. Maker creates DRAFT; an independent reviewer confirms/closes."
+        }
+        actions={
+          activeProjectId && !subsidiaryCode
+            ? <Button onClick={() => setOpen(true)}>Create finding</Button>
+            : null
+        }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

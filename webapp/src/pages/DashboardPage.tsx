@@ -6,6 +6,7 @@ import {
 import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 import { EmptyState, MetricCard, PageHeader, SectionCard } from "@/components/ui/page";
 import { api, type DashboardMetrics, type SubsidiaryRollup } from "@/lib/api";
 import { formatNumber } from "@/lib/utils";
@@ -18,6 +19,7 @@ function severityColor(score: number) {
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { data: metrics } = useQuery({
     queryKey: ["metrics"],
     queryFn: () => api.get<DashboardMetrics>("/api/metrics/dashboard"),
@@ -59,33 +61,54 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Metric grid */}
+      {/* Metric grid — every tile is a deep link */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-        <MetricCard
-          label="Open findings" value={formatNumber(metrics.findings_open)}
-          icon={<FileSearch className="h-5 w-5" />}
-          hint={`+${metrics.findings_this_month} last 30d`}
-          trend={metrics.findings_this_month > 0 ? "up" : "flat"}
-        />
-        <MetricCard
-          label="High / Critical" value={formatNumber(metrics.findings_high_or_critical)}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          accent={metrics.findings_high_or_critical ? "hsl(0 70% 50%)" : undefined}
-        />
-        <MetricCard
-          label="Active engagements" value={formatNumber(metrics.engagements_in_progress)}
-          icon={<FolderKanban className="h-5 w-5" />}
-        />
-        <MetricCard
-          label="Subsidiaries" value={formatNumber(rollup.length)}
-          icon={<Building2 className="h-5 w-5" />}
-        />
+        <button onClick={() => navigate("/findings?status=DRAFT,UNDER_REVIEW,CONFIRMED")}
+                className="text-left">
+          <MetricCard
+            label="Open findings" value={formatNumber(metrics.findings_open)}
+            icon={<FileSearch className="h-5 w-5" />}
+            hint={`+${metrics.findings_this_month} last 30d`}
+            trend={metrics.findings_this_month > 0 ? "up" : "flat"}
+          />
+        </button>
+        <button onClick={() => navigate("/findings?severity=HIGH,CRITICAL")} className="text-left">
+          <MetricCard
+            label="High / Critical" value={formatNumber(metrics.findings_high_or_critical)}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            accent={metrics.findings_high_or_critical ? "hsl(0 70% 50%)" : undefined}
+          />
+        </button>
+        <button onClick={() => navigate("/engagements")} className="text-left">
+          <MetricCard
+            label="Active engagements" value={formatNumber(metrics.engagements_in_progress)}
+            icon={<FolderKanban className="h-5 w-5" />}
+          />
+        </button>
+        <button onClick={() => navigate("/subsidiaries")} className="text-left">
+          <MetricCard
+            label="Subsidiaries" value={formatNumber(rollup.length)}
+            icon={<Building2 className="h-5 w-5" />}
+          />
+        </button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <MetricCard label="Runs last 7 days" value={formatNumber(metrics.runs_this_week)} icon={<Play className="h-5 w-5" />} />
-        <MetricCard label="Active schedules" value={formatNumber(metrics.schedules_active)} icon={<Clock className="h-5 w-5" />} />
-        <MetricCard label="Datasets imported" value={formatNumber(metrics.datasets)} icon={<Database className="h-5 w-5" />} />
-        <MetricCard label="Named tests" value="148" icon={<Package className="h-5 w-5" />} />
+        <button onClick={() => navigate("/runs")} className="text-left">
+          <MetricCard label="Runs last 7 days" value={formatNumber(metrics.runs_this_week)}
+                      icon={<Play className="h-5 w-5" />} />
+        </button>
+        <button onClick={() => navigate("/schedules")} className="text-left">
+          <MetricCard label="Active schedules" value={formatNumber(metrics.schedules_active)}
+                      icon={<Clock className="h-5 w-5" />} />
+        </button>
+        <button onClick={() => navigate("/datasets")} className="text-left">
+          <MetricCard label="Datasets imported" value={formatNumber(metrics.datasets)}
+                      icon={<Database className="h-5 w-5" />} />
+        </button>
+        <button onClick={() => navigate("/templates")} className="text-left">
+          <MetricCard label="Named tests" value="148"
+                      icon={<Package className="h-5 w-5" />} />
+        </button>
       </div>
 
       {/* Two-column: heatmap + trend */}
@@ -102,9 +125,10 @@ export function DashboardPage() {
               {rollup.slice(0, 8).map((r) => {
                 const color = severityColor(r.max_risk_score);
                 return (
-                  <div
+                  <button
                     key={r.code}
-                    className="rounded-md border bg-card p-3 flex items-center justify-between"
+                    onClick={() => navigate(`/findings?subsidiary=${r.code}`)}
+                    className="w-full text-left rounded-md border bg-card p-3 flex items-center justify-between hover:shadow-sm transition-shadow"
                     style={{ borderLeft: `3px solid ${color}` }}
                   >
                     <div className="min-w-0">
@@ -119,7 +143,7 @@ export function DashboardPage() {
                     <div className="text-xl font-bold tabular-nums" style={{ color }}>
                       {r.max_risk_score.toFixed(0)}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -189,7 +213,11 @@ export function DashboardPage() {
           ) : (
             <div className="divide-y">
               {metrics.top_risk_records.map((r) => (
-                <div key={r.record_key} className="flex items-center justify-between py-2.5">
+                <button
+                  key={r.record_key}
+                  onClick={() => navigate(`/risk?record=${encodeURIComponent(r.record_key)}`)}
+                  className="w-full flex items-center justify-between py-2.5 px-2 -mx-2 hover:bg-secondary/30 rounded text-left"
+                >
                   <div className="min-w-0">
                     <div className="font-mono text-sm font-medium truncate">{r.record_key}</div>
                     <div className="text-xs text-muted-foreground truncate">
@@ -202,7 +230,7 @@ export function DashboardPage() {
                   >
                     {r.score.toFixed(1)}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
