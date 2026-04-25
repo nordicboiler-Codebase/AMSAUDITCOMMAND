@@ -1,0 +1,1 @@
+"""Detector module — populated below."""

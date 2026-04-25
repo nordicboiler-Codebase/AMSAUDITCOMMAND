@@ -46,12 +46,20 @@ def _ensure_loaded() -> None:
     if _LOADED:
         return
     from backend.detectors import (  # noqa: F401
+        aml,
         benford_fraud,
+        comparative,
+        composite,
         data_quality,
         duplicate_sequence,
+        embedding,
         ml,
+        network,
         predictive,
+        recalculation,
+        reconciliation,
         relational,
+        sampling,
         statistical,
         temporal,
         text,
