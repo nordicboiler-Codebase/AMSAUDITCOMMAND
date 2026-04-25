@@ -21,6 +21,7 @@ import { SchedulesPage } from "./pages/SchedulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SubsidiariesPage } from "./pages/SubsidiariesPage";
 import { TemplatesPage } from "./pages/TemplatesPage";
+import { TestRunDetailPage } from "./pages/TestRunDetailPage";
 import { TestRunsPage } from "./pages/TestRunsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="run" element={<RunPage />} />
         <Route path="risk" element={<RiskExplorerPage />} />
         <Route path="runs" element={<TestRunsPage />} />
+        <Route path="runs/:id" element={<TestRunDetailPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="packs" element={<PacksPage />} />
         <Route path="subsidiaries" element={<SubsidiariesPage />} />

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
+import polars as pl
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -65,6 +67,56 @@ def get_run(run_id: uuid.UUID, db: Session = Depends(get_db),
         raise HTTPException(status_code=404, detail="Not found")
     _assert_dataset_permission(db, run.dataset_id, user, acl.Permission.VIEW)
     return _out(run)
+
+
+@router.get("/runs/{run_id}/flagged")
+def get_flagged_records(
+    run_id: uuid.UUID,
+    limit: int = 200,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Return the rows the detector flagged plus per-record reasons."""
+    run = db.get(TestRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    _assert_dataset_permission(db, run.dataset_id, user, acl.Permission.VIEW)
+    if not run.output_parquet_path:
+        return {"columns": [], "rows": [], "scores": [], "total": 0}
+    try:
+        flagged = pl.read_parquet(run.output_parquet_path)
+    except Exception:
+        flagged = pl.DataFrame()
+    scores_df = test_runner.load_scores(run)
+    score_map: dict[str, dict] = {}
+    if scores_df.height > 0:
+        for r in scores_df.iter_rows(named=True):
+            score_map[str(r["record_key"])] = {
+                "score": r.get("score"), "reason": r.get("reason"),
+            }
+    rows: list[dict] = []
+    if flagged.height > 0:
+        sliced = flagged.slice(offset, limit)
+        cols = [c for c in sliced.columns if c != "_record_key"]
+        for r in sliced.iter_rows(named=True):
+            key = str(r.get("_record_key", ""))
+            row_data = {c: r.get(c) for c in cols}
+            row_data["_record_key"] = key
+            row_data["_reason"] = score_map.get(key, {}).get("reason")
+            row_data["_score"] = score_map.get(key, {}).get("score")
+            rows.append(row_data)
+        columns = ["_record_key", "_score", "_reason"] + cols
+    else:
+        columns = []
+    return {
+        "columns": columns,
+        "rows": rows,
+        "total": flagged.height,
+        "limit": limit,
+        "offset": offset,
+        "summary": run.summary,
+    }
 
 
 @router.get("/datasets/{dataset_id}/runs")

@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { History } from "lucide-react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { api, type TestRun } from "@/lib/api";
 
 export function TestRunsPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
+  const navigate = useNavigate();
 
   const { data: datasets = [] } = useQuery({
     queryKey: ["datasets", activeProjectId],
@@ -61,7 +62,11 @@ export function TestRunsPage() {
               </thead>
               <tbody className="divide-y">
                 {runs.slice(0, 300).map((r) => (
-                  <tr key={r.id} className="hover:bg-secondary/30">
+                  <tr
+                    key={r.id}
+                    className="hover:bg-secondary/30 cursor-pointer"
+                    onClick={() => navigate(`/runs/${r.id}`)}
+                  >
                     <td className="py-2 px-3 text-xs font-mono">
                       {r.started_at ? new Date(r.started_at).toLocaleString() : "—"}
                     </td>

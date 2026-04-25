@@ -276,8 +276,11 @@ function TemplateTab({ datasetId, subledger }: { datasetId: string; subledger?: 
               <span className="text-muted-foreground"> recorded.</span>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => navigate("/runs")}>
-                View test runs <ArrowRight className="h-3.5 w-3.5" />
+              <Button
+                size="sm" variant="outline"
+                onClick={() => navigate(`/runs/${(mutation.data as TestRun).id}`)}
+              >
+                Open this run <ArrowRight className="h-3.5 w-3.5" />
               </Button>
               <Button size="sm" variant="accent" onClick={() => navigate("/risk")}>
                 Open Risk Explorer <ArrowRight className="h-3.5 w-3.5" />
@@ -406,8 +409,11 @@ function PackTab({ datasetId, subledger }: { datasetId: string; subledger?: stri
               >
                 {ensembleMutation.isPending ? "Computing…" : "Compute ensemble"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate("/runs")}>
-                View test runs <ArrowRight className="h-3.5 w-3.5" />
+              <Button
+                size="sm" variant="outline"
+                onClick={() => navigate("/runs")}
+              >
+                Open test runs <ArrowRight className="h-3.5 w-3.5" />
               </Button>
               <Button size="sm" variant="outline" onClick={() => navigate("/risk")}>
                 Open Risk Explorer <ArrowRight className="h-3.5 w-3.5" />
@@ -559,8 +565,11 @@ function DetectorTab({ datasetId }: { datasetId: string }) {
               <span className="text-muted-foreground"> recorded.</span>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => navigate("/runs")}>
-                View test runs <ArrowRight className="h-3.5 w-3.5" />
+              <Button
+                size="sm" variant="outline"
+                onClick={() => navigate(`/runs/${(mutation.data as TestRun).id}`)}
+              >
+                Open this run <ArrowRight className="h-3.5 w-3.5" />
               </Button>
               <Button size="sm" variant="accent" onClick={() => navigate("/risk")}>
                 Open Risk Explorer <ArrowRight className="h-3.5 w-3.5" />
