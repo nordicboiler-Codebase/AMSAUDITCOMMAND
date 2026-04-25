@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Target } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileSearch, RefreshCw, Target } from "lucide-react";
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { SeverityBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input, Label, Textarea } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
+import { Select } from "@/components/ui/select";
 import { api, type RiskScore, type TestRun } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 function sev(score: number) {
   if (score >= 90) return "CRITICAL";
@@ -16,11 +19,13 @@ function sev(score: number) {
 
 export function RiskExplorerPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
+  const { toast } = useToast();
   const [datasetId, setDatasetId] = useState<string | null>(
     () => localStorage.getItem("ts_active_dataset"),
   );
   const [minScore, setMinScore] = useState(50);
   const [selected, setSelected] = useState<RiskScore | null>(null);
+  const [createForRecord, setCreateForRecord] = useState<RiskScore | null>(null);
 
   const { data: datasets = [] } = useQuery({
     queryKey: ["datasets", activeProjectId],
@@ -39,11 +44,25 @@ export function RiskExplorerPage() {
 
   async function runEnsemble() {
     if (!datasetId) return;
-    const runs = await api.get<TestRun[]>(`/api/datasets/${datasetId}/runs`);
-    const completed = runs.filter((r) => r.status === "COMPLETED").map((r) => r.id);
-    if (!completed.length) return alert("No completed test runs on this dataset yet.");
-    await api.post("/api/ensemble", { dataset_id: datasetId, test_run_ids: completed });
-    refetchScores();
+    try {
+      const runs = await api.get<TestRun[]>(`/api/datasets/${datasetId}/runs`);
+      const completed = runs.filter((r) => r.status === "COMPLETED").map((r) => r.id);
+      if (!completed.length) {
+        toast({ kind: "info", title: "No completed runs",
+                description: "Run a template or pack on this dataset first." });
+        return;
+      }
+      const res = await api.post<{ summary: { records_scored: number; max_score: number } }>(
+        "/api/ensemble", { dataset_id: datasetId, test_run_ids: completed },
+      );
+      toast({
+        kind: "success", title: "Ensemble computed",
+        description: `${res.summary.records_scored} records scored (max ${res.summary.max_score.toFixed(1)})`,
+      });
+      refetchScores();
+    } catch (e) {
+      toast({ kind: "error", title: "Ensemble failed", description: (e as Error).message });
+    }
   }
 
   return (
@@ -158,6 +177,12 @@ export function RiskExplorerPage() {
                     <SeverityBadge severity={sev(selected.score)} />
                   </span>
                 </div>
+                <Button
+                  variant="accent" size="sm" className="w-full mb-4"
+                  onClick={() => setCreateForRecord(selected)}
+                >
+                  <FileSearch className="h-4 w-4" /> Create finding from this record
+                </Button>
                 <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-2">
                   Why this record scored
                 </div>
@@ -177,6 +202,117 @@ export function RiskExplorerPage() {
           </SectionCard>
         </div>
       )}
+
+      {createForRecord && datasetId && activeProjectId && (
+        <CreateFindingFromRecordDialog
+          projectId={activeProjectId}
+          datasetId={datasetId}
+          record={createForRecord}
+          onClose={() => setCreateForRecord(null)}
+        />
+      )}
     </>
+  );
+}
+
+function CreateFindingFromRecordDialog({
+  projectId, datasetId, record, onClose,
+}: {
+  projectId: string;
+  datasetId: string;
+  record: RiskScore;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const detectors = Array.from(
+    new Set(record.contributing_detectors.map((c) => c.detector_name)),
+  );
+  const templates = Array.from(
+    new Set(record.contributing_detectors.map((c) => c.template_code).filter(Boolean) as string[]),
+  );
+  const defaultSev =
+    record.score >= 90 ? "CRITICAL" :
+    record.score >= 70 ? "HIGH" :
+    record.score >= 40 ? "MEDIUM" : "LOW";
+  const [title, setTitle] = useState(
+    `${defaultSev} risk on ${record.record_key} (score ${record.score.toFixed(1)})`,
+  );
+  const [description, setDescription] = useState(
+    `Auto-flagged by detectors: ${detectors.join(", ")}.\n\n` +
+    record.contributing_detectors
+      .map((c) => `- ${c.detector_name} (${c.template_code || "n/a"}): ${c.reason || ""}`)
+      .join("\n"),
+  );
+  const [severity, setSeverity] = useState(defaultSev);
+
+  const mutation = useMutation({
+    mutationFn: () => api.post<{ id: string; code: string }>("/api/findings", {
+      project_id: projectId,
+      title,
+      description,
+      severity,
+      dataset_id: datasetId,
+      record_keys: [record.record_key],
+      risk_score: record.score,
+      linked_template_codes: templates,
+      tags: ["from-risk-explorer"],
+    }),
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ["findings"] });
+      toast({
+        kind: "success",
+        title: `Finding ${created.code} created`,
+        description: "Drafted. A reviewer (≠ you) must confirm or close.",
+      });
+      onClose();
+      navigate("/findings");
+    },
+    onError: (e) => {
+      toast({ kind: "error", title: "Could not create finding", description: (e as Error).message });
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div className="w-full max-w-lg rounded-lg bg-card border shadow-lg">
+        <div className="p-5 border-b">
+          <h3 className="text-base font-semibold">Create finding</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            From record <span className="font-mono">{record.record_key}</span> · score{" "}
+            {record.score.toFixed(1)}
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <Label>Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div>
+            <Label>Severity</Label>
+            <Select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+              {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Description (pre-filled with detector reasons)</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={6}
+            />
+          </div>
+        </div>
+        <div className="p-5 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => mutation.mutate()} disabled={!title || mutation.isPending}>
+            {mutation.isPending ? "Creating…" : "Create finding"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
