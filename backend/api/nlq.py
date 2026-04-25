@@ -19,6 +19,11 @@ class NLQIn(BaseModel):
     question: str
 
 
+class TemplateGenIn(BaseModel):
+    description: str
+    dataset_id: uuid.UUID | None = None
+
+
 def _friendly_error(e: Exception) -> str:
     return llm.humanise_provider_error(e)
 
@@ -69,3 +74,23 @@ def finding_narrative(finding_id: uuid.UUID, db: Session = Depends(get_db),
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=_friendly_error(e)) from e
     return {"narrative": text}
+
+
+@router.post("/templates/from-description")
+def template_from_description(
+    body: TemplateGenIn, db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _rl: None = Depends(nlq_rate_limit),
+) -> dict:
+    """AI proposes a template (DB row) given an auditor's description.
+
+    Returns a proposal the user reviews and saves via POST /api/templates.
+    Does NOT create the template here — keeps maker-checker-style review.
+    """
+    try:
+        return nlq.generate_template_from_description(
+            db, description=body.description, dataset_id=body.dataset_id,
+            user_id=user.id,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=_friendly_error(e)) from e

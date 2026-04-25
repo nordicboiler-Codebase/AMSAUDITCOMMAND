@@ -8,6 +8,7 @@ import polars as pl
 from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
+from backend.detectors import catalog as det_catalog
 from backend.models import AuditAction, Dataset, Finding, TestRun
 from backend.services import audit_log, llm
 from backend.services.import_service import resolve_parquet_path
@@ -321,3 +322,134 @@ The narrative should:
     )
     db.commit()
     return text
+
+
+TEMPLATE_GEN_SYSTEM = """You are an audit analytics expert. Your job is to translate
+an auditor's plain-English description of a test into a *template proposal* —
+a parameter preset bound to one of the existing detectors.
+
+Hard rules:
+- You MUST pick a detector_name from the catalog provided. Inventing a new
+  detector is forbidden. If no detector fits, set "detector_name" to null and
+  explain in "rationale".
+- default_params keys MUST exist in the chosen detector's params. Do not invent
+  parameter keys. Use sensible values that match the auditor's description.
+- code: short uppercase alphanumeric, 4-12 chars (e.g. AP_DUP_INV_30D, GL_ROUND).
+- name: human-readable, ~6 words.
+- category: one of DATA_QUALITY, FRAUD, COMPLIANCE, ANALYTICAL.
+- subledger: one of GENERAL_LEDGER, ACCOUNTS_PAYABLE, ACCOUNTS_RECEIVABLE,
+  PAYROLL, FIXED_ASSETS, INVENTORY, BANK, PROCUREMENT, TE, SALES, OTHER, or
+  null if universal.
+- default_weight: 1.0-10.0 — higher = more weight in the ensemble risk score.
+- tags: 0-5 short lowercase tokens.
+
+Return ONLY valid JSON with this schema:
+{
+  "code": "...",
+  "name": "...",
+  "description": "1-2 sentence description for the auditor",
+  "detector_name": "...",
+  "default_params": { ... },
+  "category": "...",
+  "subledger": "..." or null,
+  "default_weight": 5.0,
+  "tags": ["..."],
+  "rationale": "Why this detector + these params answer the auditor's question."
+}"""
+
+
+def generate_template_from_description(
+    db: Session, *, description: str, dataset_id: uuid.UUID | None,
+    user_id: uuid.UUID,
+) -> dict[str, Any]:
+    """Translate an auditor's description into a proposed template (DB row).
+
+    Does NOT save the template — returns a proposal the user reviews and
+    commits via POST /api/templates. The proposal is validated against the
+    detector catalog server-side: invalid detector_name or invalid param keys
+    are stripped before returning.
+    """
+    client = _get_client(db)
+    if client is None:
+        return {
+            "error": _stub_reason(db),
+            "rationale": "Configure an AI provider in Settings → AI Providers to "
+                         "use plain-English template generation.",
+        }
+
+    det_catalog.load_all()
+    detectors = det_catalog.list_all()
+    detector_block_lines = []
+    for d in detectors:
+        keys = list((d.default_params or {}).keys())
+        cat = d.category.value if hasattr(d.category, "value") else str(d.category)
+        detector_block_lines.append(
+            f"- {d.name} (category={cat}): {d.description}\n"
+            f"  param keys: {keys}\n"
+            f"  default params: {json.dumps(d.default_params)[:300]}"
+        )
+    detector_block = "\n".join(detector_block_lines)
+
+    dataset_block = ""
+    if dataset_id:
+        ds = db.get(Dataset, dataset_id)
+        if ds:
+            dataset_block = "\n\nDATASET CONTEXT (use the columns and subledger):\n" + _dataset_context(ds)
+
+    user_prompt = f"""AUDITOR DESCRIPTION OF THE TEST THEY WANT:
+{description}
+
+DETECTOR CATALOG (only these are valid):
+{detector_block}
+{dataset_block}
+
+Pick the best-matching detector_name and design a template around it.
+Return JSON only."""
+
+    text = client.complete(
+        system=TEMPLATE_GEN_SYSTEM, user=user_prompt,
+        max_tokens=1500, temperature=0.2,
+    )
+
+    parsed: dict[str, Any] = {}
+    try:
+        start = text.index("{")
+        end = text.rindex("}") + 1
+        parsed = json.loads(text[start:end])
+    except (ValueError, json.JSONDecodeError) as e:
+        parsed = {"error": f"Could not parse model output as JSON: {e}", "raw": text}
+
+    # Server-side validation against the detector catalog.
+    detector_name = parsed.get("detector_name")
+    if detector_name:
+        try:
+            det = det_catalog.get(detector_name)
+            valid_keys = set((det.default_params or {}).keys())
+            params = parsed.get("default_params") or {}
+            # Strip params whose keys aren't real for this detector.
+            stripped = {k: v for k, v in params.items() if k in valid_keys}
+            removed = sorted(set(params) - valid_keys)
+            parsed["default_params"] = stripped
+            if removed:
+                parsed["validation_warnings"] = [
+                    f"Removed params not on detector {detector_name}: {removed}"
+                ]
+        except KeyError:
+            parsed["error"] = f"Model picked unknown detector: {detector_name}"
+            parsed["detector_name"] = None
+
+    audit_log.log_action(
+        db, user_id=user_id, action=AuditAction.NLQ, entity_type="template",
+        entity_id=None,
+        details={
+            "kind": "generate_template_from_description",
+            "description": description[:500],
+            "provider": client.provider,
+            "model": client.model,
+            "proposed_code": parsed.get("code"),
+            "proposed_detector": parsed.get("detector_name"),
+            "rationale": (parsed.get("rationale") or "")[:300],
+        },
+    )
+    db.commit()
+    return parsed
