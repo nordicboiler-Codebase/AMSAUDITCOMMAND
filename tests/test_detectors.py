@@ -125,7 +125,7 @@ def sample_df() -> pl.DataFrame:
 
 def test_catalog_registers_all_detectors(detector_catalog):
     rows = detector_catalog.list_all()
-    assert len(rows) >= 35, f"Expected ≥35 detectors, got {len(rows)}"
+    assert len(rows) >= 60, f"Expected ≥60 detectors, got {len(rows)}"
     names = {d.name for d in rows}
     expected = {
         "null_check", "type_validation", "format_validation", "range_validation",
