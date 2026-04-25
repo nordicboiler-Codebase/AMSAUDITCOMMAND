@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Upload } from "lucide-react";
+import { Database, Download, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { EmptyState, PageHeader, SectionCard } from "@/components/ui/page";
 import { Select } from "@/components/ui/select";
-import { api, type Dataset } from "@/lib/api";
+import { api, getToken, type Dataset } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 import { formatNumber } from "@/lib/utils";
 
 const SUBLEDGERS = [
@@ -50,6 +51,8 @@ export function DatasetsPage() {
         description="Raw source data, SHA-256 hashed on import, Fernet-encrypted at rest."
         actions={<Button onClick={() => setOpen(true)}><Upload className="h-4 w-4" /> Import</Button>}
       />
+
+      <SampleDownloads />
 
       {datasets.length === 0 ? (
         <EmptyState
@@ -177,6 +180,91 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <span className="text-muted-foreground">{label}</span>
       <span className={mono ? "font-mono truncate" : "truncate"}>{value}</span>
     </div>
+  );
+}
+
+interface Sample {
+  filename: string;
+  title: string;
+  description: string;
+  subledger_type: string;
+  suggested_pack: string;
+  size_bytes: number;
+}
+
+function SampleDownloads() {
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  const { data: samples = [] } = useQuery({
+    queryKey: ["samples"],
+    queryFn: () => api.get<Sample[]>("/api/samples"),
+  });
+
+  async function downloadSample(s: Sample) {
+    try {
+      const r = await fetch(`/api/samples/${s.filename}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error(r.statusText);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = s.filename; a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        kind: "success",
+        title: `Downloaded ${s.filename}`,
+        description: `Import it back, then run pack ${s.suggested_pack}`,
+      });
+    } catch (e) {
+      toast({ kind: "error", title: "Download failed", description: (e as Error).message });
+    }
+  }
+
+  if (!samples.length) return null;
+
+  return (
+    <SectionCard
+      title="Sample CSVs (planted fraud signals)"
+      description="Download a ready-made file, import it, then run the suggested pack — findings light up immediately."
+      actions={
+        <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide samples" : `Browse ${samples.length} samples`}
+        </Button>
+      }
+    >
+      {open && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+          {samples.map((s) => (
+            <div
+              key={s.filename}
+              className="rounded-lg border bg-card p-3.5 hover:shadow-sm transition-shadow"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Badge tone="muted">{s.subledger_type.replace(/_/g, " ")}</Badge>
+                  <div className="text-sm font-semibold mt-2">{s.title}</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
+                {s.description}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-2 font-mono">
+                Suggested pack: {s.suggested_pack}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-3"
+                onClick={() => downloadSample(s)}
+              >
+                <Download className="h-3.5 w-3.5" /> {s.filename}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
   );
 }
 

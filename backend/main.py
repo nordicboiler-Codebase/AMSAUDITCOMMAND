@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
         reports,
         risk,
         runs,
+        samples,
         schedules,
         scim,
         settings,
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
     app.include_router(field_sensitivity.router, prefix="/api", tags=["field_sensitivity"])
     app.include_router(scim.router, prefix="/scim/v2", tags=["scim"])
+    app.include_router(samples.router, prefix="/api/samples", tags=["samples"])
 
     return app
 
