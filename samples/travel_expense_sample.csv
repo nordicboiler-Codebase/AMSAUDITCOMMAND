@@ -1,9 +1,131 @@
 record_id,claim_id,employee_id,employee_name,category,amount,category_limit,expense_date,description,receipt_path,mileage_km
-R0001,EXP-001,E01,Sarah Khan,meals,120.50,200.00,2025-03-04,lunch with client,rcp_001.pdf,0
-R0002,EXP-002,E02,Ahmed Rashid,travel,3500.00,5000.00,2025-03-08,flight Dubai to London,rcp_002.pdf,0
-R0003,EXP-003,E03,Priya Sharma,meals,500.00,200.00,2025-03-12,client dinner exceeded limit,rcp_003.pdf,0
-R0004,EXP-004,E01,Sarah Khan,meals,120.50,200.00,2025-03-04,lunch with client,rcp_001.pdf,0
-R0005,EXP-005,E04,John Chen,transport,1000.00,500.00,2025-03-15,round dollar taxi claim,,0
-R0006,EXP-006,E05,Maria Souza,mileage,450.00,600.00,2025-03-16,site visit,rcp_006.pdf,1200
-R0007,EXP-007,E06,James Wilson,meals,85.00,200.00,2025-03-22,weekend team dinner,rcp_007.pdf,0
-R0008,EXP-008,E02,Ahmed Rashid,office,2000.00,1500.00,2025-03-25,supplies exceeded limit,,0
+R0000,EXP-6000,E044,Employee 003,meals,400,200,2025-09-20,client lunch,,0
+R0001,EXP-6001,E015,Employee 046,travel,6652.87,5000,2025-11-08,flight,rcp_0001.pdf,0
+R0002,EXP-6002,E043,Employee 004,travel,1048.86,5000,2025-09-05,flight,rcp_0002.pdf,0
+R0003,EXP-6003,E034,Employee 027,travel,1633.56,5000,2025-10-28,flight,rcp_0003.pdf,0
+R0004,EXP-6004,E008,Employee 002,travel,6974.48,5000,2025-09-12,flight,rcp_0004.pdf,0
+R0005,EXP-6005,E022,Employee 026,office,730.39,1500,2025-09-27,site visit,rcp_0005.pdf,0
+R0006,EXP-6006,E014,Employee 047,transport,425.86,500,2025-10-02,site visit,rcp_0006.pdf,0
+R0007,EXP-6007,E036,Employee 004,travel,2926.04,5000,2025-11-24,flight,rcp_0007.pdf,0
+R0008,EXP-6008,E009,Employee 014,meals,238.06,200,2025-10-16,client lunch,rcp_0008.pdf,0
+R0009,EXP-6009,E002,Employee 006,travel,5858.17,5000,2025-10-19,flight,rcp_0009.pdf,0
+R0010,EXP-6010,E052,Employee 014,mileage,732.05,600,2025-11-23,site visit,rcp_0010.pdf,475
+R0011,EXP-6011,E022,Employee 042,office,1538.02,1500,2025-09-25,site visit,rcp_0011.pdf,0
+R0012,EXP-6012,E022,Employee 019,travel,3385.02,5000,2025-10-04,flight,rcp_0012.pdf,0
+R0013,EXP-6013,E042,Employee 042,transport,408.89,500,2025-11-01,site visit,rcp_0013.pdf,0
+R0014,EXP-6014,E051,Employee 050,transport,673.7,500,2025-09-13,site visit,rcp_0014.pdf,0
+R0015,EXP-6015,E040,Employee 060,transport,629.57,500,2025-11-11,site visit,rcp_0015.pdf,0
+R0016,EXP-6016,E006,Employee 012,mileage,707.41,600,2025-10-08,site visit,rcp_0016.pdf,444
+R0017,EXP-6017,E007,Employee 043,meals,412.31,200,2025-11-29,client lunch,rcp_0017.pdf,0
+R0018,EXP-6018,E042,Employee 054,office,612.42,1500,2025-10-10,site visit,rcp_0018.pdf,0
+R0019,EXP-6019,E052,Employee 022,travel,815.68,5000,2025-09-26,flight,,0
+R0020,EXP-6020,E036,Employee 046,office,858.1,1500,2025-09-07,site visit,rcp_0020.pdf,0
+R0021,EXP-6021,E008,Employee 013,meals,89.6,200,2025-11-21,client lunch,rcp_0021.pdf,0
+R0022,EXP-6022,E031,Employee 004,travel,2359.79,5000,2025-09-20,flight,rcp_0022.pdf,0
+R0023,EXP-6023,E018,Employee 056,office,1300,1500,2025-11-05,site visit,rcp_0023.pdf,0
+R0024,EXP-6024,E041,Employee 038,transport,687.39,500,2025-11-02,site visit,rcp_0024.pdf,0
+R0025,EXP-6025,E009,Employee 052,meals,242.18,200,2025-11-02,client lunch,rcp_0025.pdf,0
+R0026,EXP-6026,E017,Employee 032,mileage,588.19,600,2025-09-06,site visit,rcp_0026.pdf,1012
+R0027,EXP-6027,E025,Employee 038,transport,181.46,500,2025-09-13,site visit,rcp_0027.pdf,0
+R0028,EXP-6028,E009,Employee 008,transport,323.17,500,2025-09-06,site visit,rcp_0028.pdf,0
+R0029,EXP-6029,E060,Employee 040,mileage,729.46,600,2025-09-07,site visit,rcp_0029.pdf,472
+R0030,EXP-6030,E045,Employee 012,travel,6627.72,5000,2025-10-09,flight,rcp_0030.pdf,0
+R0031,EXP-6031,E033,Employee 034,mileage,392.98,600,2025-11-28,site visit,rcp_0031.pdf,1081
+R0032,EXP-6032,E046,Employee 040,office,492.03,1500,2025-09-25,site visit,rcp_0032.pdf,0
+R0033,EXP-6033,E021,Employee 009,office,661.64,1500,2025-10-30,site visit,rcp_0033.pdf,0
+R0034,EXP-6034,E019,Employee 045,transport,1130.71,500,2025-09-25,site visit,rcp_0034.pdf,0
+R0035,EXP-6035,E003,Employee 055,office,1225.87,1500,2025-09-22,site visit,rcp_0035.pdf,0
+R0036,EXP-6036,E010,Employee 016,meals,210.48,200,2025-09-27,client lunch,rcp_0036.pdf,0
+R0037,EXP-6037,E028,Employee 057,office,1855.55,1500,2025-09-27,site visit,rcp_0037.pdf,0
+R0038,EXP-6038,E059,Employee 050,transport,388.26,500,2025-10-02,site visit,,0
+R0039,EXP-6039,E003,Employee 031,transport,519.88,500,2025-09-06,site visit,rcp_0039.pdf,0
+R0040,EXP-6040,E017,Employee 035,mileage,698.85,600,2025-10-06,site visit,rcp_0040.pdf,464
+R0041,EXP-6040,E014,Employee 026,office,1712.85,1500,2025-10-17,site visit,rcp_0041.pdf,0
+R0042,EXP-6042,E046,Employee 013,meals,232.59,200,2025-10-20,client lunch,rcp_0042.pdf,0
+R0043,EXP-6043,E020,Employee 045,travel,1516.4,5000,2025-10-15,flight,rcp_0043.pdf,0
+R0044,EXP-6044,E005,Employee 016,transport,96.37,500,2025-09-28,site visit,rcp_0044.pdf,0
+R0045,EXP-6045,E029,Employee 060,mileage,588.75,600,2025-11-03,site visit,rcp_0045.pdf,1385
+R0046,EXP-6046,E003,Employee 005,transport,500,500,2025-10-24,site visit,rcp_0046.pdf,0
+R0047,EXP-6047,E054,Employee 001,office,340.34,1500,2025-10-31,site visit,rcp_0047.pdf,0
+R0048,EXP-6048,E049,Employee 019,meals,92.08,200,2025-10-05,client lunch,rcp_0048.pdf,0
+R0049,EXP-6049,E038,Employee 020,transport,624.72,500,2025-10-02,site visit,rcp_0049.pdf,0
+R0050,EXP-6050,E016,Employee 039,office,1879.01,1500,2025-09-30,site visit,rcp_0050.pdf,0
+R0051,EXP-6051,E055,Employee 007,travel,9975.1,5000,2025-10-11,flight,rcp_0051.pdf,0
+R0052,EXP-6052,E024,Employee 059,mileage,600.42,600,2025-09-06,site visit,rcp_0052.pdf,1160
+R0053,EXP-6053,E031,Employee 034,office,1977.49,1500,2025-11-26,site visit,rcp_0053.pdf,0
+R0054,EXP-6054,E026,Employee 044,transport,229.85,500,2025-10-20,site visit,rcp_0054.pdf,0
+R0055,EXP-6055,E050,Employee 027,travel,3888.59,5000,2025-09-29,flight,rcp_0055.pdf,0
+R0056,EXP-6056,E046,Employee 016,meals,234.11,200,2025-10-02,client lunch,rcp_0056.pdf,0
+R0057,EXP-6057,E044,Employee 059,meals,240.5,200,2025-10-23,client lunch,,0
+R0058,EXP-6058,E051,Employee 036,transport,205.6,500,2025-09-14,site visit,rcp_0058.pdf,0
+R0059,EXP-6059,E049,Employee 028,meals,105.22,200,2025-11-02,client lunch,rcp_0059.pdf,0
+R0060,EXP-6060,E021,Employee 052,travel,5366.5,5000,2025-10-10,flight,rcp_0060.pdf,0
+R0061,EXP-6061,E035,Employee 056,meals,262.97,200,2025-09-29,client lunch,rcp_0061.pdf,0
+R0062,EXP-6062,E002,Employee 032,office,1155.75,1500,2025-09-10,site visit,rcp_0062.pdf,0
+R0063,EXP-6063,E049,Employee 031,office,935.26,1500,2025-11-01,site visit,rcp_0063.pdf,0
+R0064,EXP-6064,E022,Employee 016,meals,254.2,200,2025-11-23,client lunch,rcp_0064.pdf,0
+R0065,EXP-6065,E055,Employee 023,travel,6951.72,5000,2025-11-01,flight,rcp_0065.pdf,0
+R0066,EXP-6066,E059,Employee 056,meals,263.47,200,2025-10-21,client lunch,rcp_0066.pdf,0
+R0067,EXP-6067,E027,Employee 015,transport,440.94,500,2025-09-26,site visit,rcp_0067.pdf,0
+R0068,EXP-6068,E057,Employee 047,meals,464.55,200,2025-09-05,client lunch,rcp_0068.pdf,0
+R0069,EXP-6069,E009,Employee 053,office,1000,1500,2025-10-22,site visit,rcp_0069.pdf,0
+R0070,EXP-6070,E016,Employee 036,mileage,766.21,600,2025-10-25,site visit,rcp_0070.pdf,577
+R0071,EXP-6071,E056,Employee 038,meals,137.93,200,2025-09-18,client lunch,rcp_0071.pdf,0
+R0072,EXP-6072,E009,Employee 042,transport,612.42,500,2025-09-26,site visit,rcp_0072.pdf,0
+R0073,EXP-6073,E022,Employee 022,office,994.1,1500,2025-10-06,site visit,rcp_0073.pdf,0
+R0074,EXP-6074,E039,Employee 029,office,1631.61,1500,2025-10-05,site visit,rcp_0074.pdf,0
+R0075,EXP-6075,E042,Employee 015,office,732.51,1500,2025-09-24,site visit,rcp_0075.pdf,0
+R0076,EXP-6076,E008,Employee 049,transport,572.82,500,2025-09-22,site visit,,0
+R0077,EXP-6077,E018,Employee 043,meals,204.16,200,2025-10-10,client lunch,rcp_0077.pdf,0
+R0078,EXP-6078,E033,Employee 007,office,918.78,1500,2025-09-13,site visit,rcp_0078.pdf,0
+R0079,EXP-6079,E056,Employee 032,transport,563.92,500,2025-11-09,site visit,rcp_0079.pdf,0
+R0080,EXP-6080,E028,Employee 031,office,752.58,1500,2025-11-28,site visit,rcp_0080.pdf,0
+R0081,EXP-6081,E021,Employee 021,travel,452.86,5000,2025-11-16,flight,rcp_0081.pdf,0
+R0082,EXP-6081,E008,Employee 045,transport,393.33,500,2025-10-12,site visit,rcp_0082.pdf,0
+R0083,EXP-6083,E057,Employee 015,mileage,690.27,600,2025-11-29,site visit,rcp_0083.pdf,1179
+R0084,EXP-6084,E017,Employee 009,mileage,505.52,600,2025-09-23,site visit,rcp_0084.pdf,1165
+R0085,EXP-6085,E021,Employee 055,transport,1026.95,500,2025-11-09,site visit,rcp_0085.pdf,0
+R0086,EXP-6086,E048,Employee 005,mileage,819.75,600,2025-10-04,site visit,rcp_0086.pdf,1373
+R0087,EXP-6087,E010,Employee 031,mileage,157.93,600,2025-11-28,site visit,rcp_0087.pdf,1143
+R0088,EXP-6088,E012,Employee 030,travel,2992.66,5000,2025-09-24,flight,rcp_0088.pdf,0
+R0089,EXP-6089,E023,Employee 052,mileage,129.27,600,2025-11-14,site visit,rcp_0089.pdf,847
+R0090,EXP-6090,E022,Employee 001,office,1886.81,1500,2025-11-01,site visit,rcp_0090.pdf,0
+R0091,EXP-6091,E047,Employee 009,office,793.45,1500,2025-09-27,site visit,rcp_0091.pdf,0
+R0092,EXP-6092,E014,Employee 046,office,1800,1500,2025-09-21,site visit,rcp_0092.pdf,0
+R0093,EXP-6093,E032,Employee 023,meals,211.88,200,2025-11-15,client lunch,rcp_0093.pdf,0
+R0094,EXP-6094,E049,Employee 058,travel,5509.94,5000,2025-09-10,flight,rcp_0094.pdf,0
+R0095,EXP-6095,E005,Employee 007,mileage,257.26,600,2025-09-22,site visit,,88
+R0096,EXP-6096,E037,Employee 012,meals,240.45,200,2025-10-15,client lunch,rcp_0096.pdf,0
+R0097,EXP-6097,E027,Employee 020,travel,531.43,5000,2025-10-23,flight,rcp_0097.pdf,0
+R0098,EXP-6098,E026,Employee 053,mileage,62.59,600,2025-10-09,site visit,rcp_0098.pdf,251
+R0099,EXP-6099,E033,Employee 019,meals,45.13,200,2025-09-21,client lunch,rcp_0099.pdf,0
+R0100,EXP-6100,E005,Employee 035,travel,4553.95,5000,2025-10-15,flight,rcp_0100.pdf,0
+R0101,EXP-6101,E056,Employee 050,travel,2780.16,5000,2025-10-07,flight,rcp_0101.pdf,0
+R0102,EXP-6102,E031,Employee 060,meals,334.87,200,2025-11-17,client lunch,rcp_0102.pdf,0
+R0103,EXP-6103,E046,Employee 057,transport,374.73,500,2025-10-25,site visit,rcp_0103.pdf,0
+R0104,EXP-6104,E041,Employee 036,travel,6838.01,5000,2025-09-06,flight,rcp_0104.pdf,0
+R0105,EXP-6105,E002,Employee 010,travel,6466.96,5000,2025-11-12,flight,rcp_0105.pdf,0
+R0106,EXP-6106,E058,Employee 059,mileage,552.89,600,2025-09-14,site visit,rcp_0106.pdf,625
+R0107,EXP-6107,E030,Employee 011,travel,3444.66,5000,2025-10-15,flight,rcp_0107.pdf,0
+R0108,EXP-6108,E015,Employee 018,transport,338.08,500,2025-10-17,site visit,rcp_0108.pdf,0
+R0109,EXP-6109,E057,Employee 030,transport,470.03,500,2025-10-05,site visit,rcp_0109.pdf,0
+R0110,EXP-6110,E013,Employee 028,transport,507.01,500,2025-10-19,site visit,rcp_0110.pdf,0
+R0111,EXP-6111,E002,Employee 030,office,1199.35,1500,2025-09-06,site visit,rcp_0111.pdf,0
+R0112,EXP-6112,E054,Employee 031,mileage,295.86,600,2025-11-15,site visit,rcp_0112.pdf,913
+R0113,EXP-6113,E038,Employee 044,meals,152.78,200,2025-11-29,client lunch,rcp_0113.pdf,0
+R0114,EXP-6114,E050,Employee 036,office,1041.65,1500,2025-11-07,site visit,,0
+R0115,EXP-6115,E045,Employee 004,meals,0,200,2025-11-04,client lunch,rcp_0115.pdf,0
+R0116,EXP-6116,E049,Employee 026,office,1982.02,1500,2025-10-07,site visit,rcp_0116.pdf,0
+R0117,EXP-6117,E011,Employee 029,transport,79.44,500,2025-10-04,site visit,rcp_0117.pdf,0
+R0118,EXP-6118,E044,Employee 032,mileage,220.3,600,2025-09-24,site visit,rcp_0118.pdf,521
+R0119,EXP-6119,E018,Employee 022,travel,11072.4,5000,2025-11-08,flight,rcp_0119.pdf,0
+R0120,EXP-6120,E045,Employee 041,meals,87.71,200,2025-10-06,client lunch,rcp_0120.pdf,0
+R0121,EXP-6121,E026,Employee 003,meals,26.65,200,2025-10-21,client lunch,rcp_0121.pdf,0
+R0122,EXP-6122,E029,Employee 008,office,1417.37,1500,2025-09-13,site visit,rcp_0122.pdf,0
+R0123,EXP-6122,E025,Employee 050,mileage,403.26,600,2025-11-26,site visit,rcp_0123.pdf,669
+R0124,EXP-6124,E011,Employee 039,travel,522.07,5000,2025-10-18,flight,rcp_0124.pdf,0
+R0125,EXP-6125,E008,Employee 010,transport,273.36,500,2025-09-17,site visit,rcp_0125.pdf,0
+R0126,EXP-6126,E043,Employee 014,transport,407.46,500,2025-09-09,site visit,rcp_0126.pdf,0
+R0127,EXP-6127,E029,Employee 014,office,115.31,1500,2025-11-10,site visit,rcp_0127.pdf,0
+R0128,EXP-6128,E049,Employee 037,transport,89.25,500,2025-09-07,site visit,rcp_0128.pdf,0
+R0129,EXP-6129,E003,Employee 003,office,1107.81,1500,2025-09-08,site visit,rcp_0129.pdf,0

@@ -1,9 +1,141 @@
 record_id,po_number,vendor_id,vendor_name,po_amount,po_date,po_type,po_notes,justification,change_type,amendment_count,gr_amount,invoice_amount,has_invoice,has_quotes
-R0001,PO-5001,V01,Acme Supplies LLC,9500.00,2025-03-03,standard,regular supplies order,,none,0,9500.00,9500.00,true,true
-R0002,PO-5002,V01,Acme Supplies LLC,9800.00,2025-03-04,standard,regular supplies order,,none,0,9800.00,9800.00,true,true
-R0003,PO-5003,V01,Acme Supplies LLC,9750.00,2025-03-05,standard,regular supplies order,,none,0,9750.00,9750.00,true,true
-R0004,PO-5004,V02,Gulf Trading Co,75000.00,2025-03-10,emergency,urgent emergency order single source,sole source - only supplier,value_increase,3,75000.00,85000.00,true,false
-R0005,PO-5005,V03,Tech Innovations FZ,35000.00,2025-03-15,standard,software licence,,none,0,,35000.00,true,true
-R0006,PO-5006,V04,Quick Logistics,12000.00,2025-03-20,standard,logistics services,,none,0,12000.00,,false,true
-R0007,PO-5007,V05,Mystery Vendor,150000.00,2025-03-25,standard,consulting services,exclusive sole source partnership,none,1,0,150000.00,true,false
-R0008,PO-5001,V06,Duplicate PO Vendor,50000.00,2025-03-28,standard,duplicate po number,,none,0,50000.00,50000.00,true,true
+R0000,PO-5000,V028,Vendor 020,9354,2025-10-07,emergency,urgent emergency single source,sole source — exclusive partner,value_increase,4,,,False,False
+R0001,PO-5001,V013,Vendor 014,201.17,2025-09-03,standard,regular order,competitive bid,none,1,201.17,682.87,True,True
+R0002,PO-5002,V021,Vendor 008,230.71,2025-10-15,standard,regular order,competitive bid,none,1,230.71,90.57,True,True
+R0003,PO-5003,V027,Vendor 024,5528.6,2025-09-26,standard,regular order,competitive bid,none,1,5528.6,5641.65,True,True
+R0004,PO-5004,V026,Vendor 014,394.93,2025-11-26,standard,regular order,competitive bid,none,1,394.93,749.83,True,True
+R0005,PO-5005,V018,Vendor 022,9313.71,2025-10-25,standard,regular order,competitive bid,none,0,9313.71,9322.57,True,True
+R0006,PO-5006,V027,Vendor 014,6188.96,2025-10-31,standard,regular order,competitive bid,none,0,6188.96,6349.95,True,True
+R0007,PO-5007,V019,Vendor 023,42966.51,2025-11-22,standard,regular order,competitive bid,none,1,42966.51,43096.49,True,True
+R0008,PO-5008,V024,Vendor 029,74707.75,2025-10-18,standard,regular order,competitive bid,none,0,74707.75,75107.97,True,True
+R0009,PO-5009,V026,Vendor 003,840.03,2025-11-10,standard,regular order,competitive bid,none,1,840.03,918.53,True,True
+R0010,PO-5010,V015,Vendor 010,2836.68,2025-11-19,standard,regular order,competitive bid,none,1,2836.68,3098.24,True,True
+R0011,PO-5011,V022,Vendor 009,1329.14,2025-09-02,standard,regular order,competitive bid,none,0,1329.14,1809.76,True,True
+R0012,PO-5012,V030,Vendor 018,119.28,2025-09-18,standard,regular order,competitive bid,none,1,119.28,224.78,True,True
+R0013,PO-5013,V024,Vendor 002,9009,2025-11-22,standard,regular order,competitive bid,none,0,9009,9024.5,True,True
+R0014,PO-5014,V002,Vendor 017,106.14,2025-09-02,standard,regular order,competitive bid,none,0,106.14,12.06,True,True
+R0015,PO-5015,V008,Vendor 003,32012.75,2025-09-04,standard,regular order,competitive bid,none,1,32012.75,32324.26,True,True
+R0016,PO-5016,V005,Vendor 007,794.28,2025-09-15,standard,regular order,competitive bid,none,0,794.28,1113.57,True,True
+R0017,PO-5017,V028,Vendor 008,89947.13,2025-09-26,standard,regular order,competitive bid,none,1,,,False,True
+R0018,PO-5018,V011,Vendor 008,514.92,2025-09-01,standard,regular order,competitive bid,none,0,514.92,749.74,True,True
+R0019,PO-5019,V009,Vendor 011,60073.37,2025-09-30,standard,regular order,competitive bid,value_increase,4,60073.37,60353.02,True,True
+R0020,PO-5020,V029,Vendor 011,55424.25,2025-10-23,standard,regular order,competitive bid,none,0,55424.25,55430.27,True,True
+R0021,PO-5021,V014,Vendor 022,126579.96,2025-09-15,standard,regular order,competitive bid,none,1,126579.96,126684.36,True,True
+R0022,PO-5022,V026,Vendor 029,2109.02,2025-09-04,standard,regular order,competitive bid,none,1,2109.02,2369.74,True,True
+R0023,PO-5023,V006,Vendor 012,2305.85,2025-11-19,emergency,urgent emergency single source,competitive bid,none,0,2305.85,2435.45,True,False
+R0024,PO-5024,V011,Vendor 007,18245.52,2025-10-31,standard,regular order,competitive bid,none,0,18245.52,18683.05,True,True
+R0025,PO-5025,V019,Vendor 008,3550.45,2025-10-28,standard,regular order,competitive bid,none,0,3550.45,3472.0,True,True
+R0026,PO-5026,V006,Vendor 006,9668,2025-09-05,standard,regular order,competitive bid,none,1,9668,10134.78,True,True
+R0027,PO-5027,V023,Vendor 010,3937.04,2025-09-07,standard,regular order,competitive bid,none,1,3937.04,3811.38,True,True
+R0028,PO-5028,V008,Vendor 004,1139.31,2025-09-25,standard,regular order,competitive bid,none,1,1139.31,1431.06,True,True
+R0029,PO-5029,V004,Vendor 026,12829.81,2025-10-03,standard,regular order,sole source — exclusive partner,none,0,12829.81,12852.35,True,False
+R0030,PO-5030,V012,Vendor 007,1837.3,2025-09-30,standard,regular order,competitive bid,none,0,1837.3,1940.28,True,True
+R0031,PO-5031,V009,Vendor 018,186132.53,2025-10-14,standard,regular order,competitive bid,none,1,186132.53,186156.26,True,True
+R0032,PO-5032,V022,Vendor 004,4126.5,2025-09-21,standard,regular order,competitive bid,none,0,4126.5,4459.27,True,True
+R0033,PO-5033,V021,Vendor 009,270060.33,2025-09-10,standard,regular order,competitive bid,none,0,270060.33,270550.88,True,True
+R0034,PO-5034,V007,Vendor 005,62103.46,2025-09-06,standard,regular order,competitive bid,none,0,,,False,True
+R0035,PO-5035,V025,Vendor 022,919.72,2025-10-11,standard,regular order,competitive bid,none,1,919.72,1234.39,True,True
+R0036,PO-5036,V021,Vendor 026,1007.25,2025-11-30,standard,regular order,competitive bid,none,0,1007.25,1044.4,True,True
+R0037,PO-5037,V012,Vendor 004,37324.09,2025-11-23,standard,regular order,competitive bid,none,1,37324.09,37603.33,True,True
+R0038,PO-5038,V020,Vendor 023,1022.42,2025-11-08,standard,regular order,competitive bid,none,0,1022.42,1064.91,True,True
+R0039,PO-5039,V017,Vendor 001,9823,2025-10-27,standard,regular order,competitive bid,none,0,9823,9786.63,True,True
+R0040,PO-5040,V023,Vendor 025,231460.68,2025-09-27,standard,regular order,competitive bid,none,1,231460.68,231896.51,True,True
+R0041,PO-5041,V018,Vendor 017,2522.37,2025-11-18,standard,regular order,competitive bid,none,1,2522.37,2902.64,True,True
+R0042,PO-5042,V015,Vendor 023,507.11,2025-10-16,standard,regular order,competitive bid,none,0,507.11,529.23,True,True
+R0043,PO-5043,V009,Vendor 017,1090.45,2025-09-30,standard,regular order,competitive bid,none,0,1090.45,1470.08,True,True
+R0044,PO-5044,V008,Vendor 021,32700.75,2025-09-27,standard,regular order,competitive bid,none,0,32700.75,32832.15,True,True
+R0045,PO-5045,V022,Vendor 004,1164.65,2025-10-25,standard,regular order,competitive bid,none,0,1164.65,1501.53,True,True
+R0046,PO-5046,V013,Vendor 020,108.86,2025-11-14,emergency,urgent emergency single source,competitive bid,none,1,108.86,124.78,True,False
+R0047,PO-5047,V004,Vendor 020,741.99,2025-10-09,standard,regular order,competitive bid,none,0,741.99,666.44,True,True
+R0048,PO-5048,V029,Vendor 005,2154.12,2025-11-09,standard,regular order,competitive bid,none,1,2154.12,2276.8,True,True
+R0049,PO-5049,V001,Vendor 002,247.96,2025-11-05,standard,regular order,competitive bid,none,0,247.96,330.37,True,True
+R0050,PO-5050,V017,Vendor 022,2768.19,2025-10-21,standard,regular order,competitive bid,none,0,2768.19,3062.38,True,True
+R0051,PO-5051,V007,Vendor 004,49437.6,2025-10-03,standard,regular order,competitive bid,none,1,,,False,True
+R0052,PO-5052,V021,Vendor 019,9755,2025-09-11,standard,regular order,competitive bid,none,0,9755,9791.51,True,True
+R0053,PO-5052,V019,Vendor 009,953.83,2025-11-11,standard,regular order,competitive bid,none,0,953.83,1127.38,True,True
+R0054,PO-5054,V015,Vendor 024,110189.05,2025-11-25,standard,regular order,competitive bid,none,0,110189.05,110134.5,True,True
+R0055,PO-5055,V022,Vendor 026,1492.45,2025-10-01,standard,regular order,competitive bid,none,1,1492.45,1438.72,True,True
+R0056,PO-5056,V020,Vendor 008,1347.66,2025-09-28,standard,regular order,competitive bid,none,1,1347.66,1149.82,True,True
+R0057,PO-5057,V009,Vendor 017,210872.81,2025-09-16,standard,regular order,competitive bid,value_increase,2,210872.81,210852.14,True,True
+R0058,PO-5058,V008,Vendor 025,39386.64,2025-10-28,standard,regular order,sole source — exclusive partner,none,0,39386.64,39525.82,True,False
+R0059,PO-5059,V029,Vendor 004,13386.46,2025-11-25,standard,regular order,competitive bid,none,0,13386.46,13847.92,True,True
+R0060,PO-5060,V004,Vendor 007,66385.53,2025-11-13,standard,regular order,competitive bid,none,0,66385.53,66536.63,True,True
+R0061,PO-5061,V014,Vendor 017,986.54,2025-11-09,standard,regular order,competitive bid,none,1,986.54,1294.07,True,True
+R0062,PO-5062,V003,Vendor 008,5655.87,2025-10-11,standard,regular order,competitive bid,none,1,5655.87,5556.3,True,True
+R0063,PO-5063,V015,Vendor 008,288.29,2025-11-19,standard,regular order,competitive bid,none,1,288.29,665.28,True,True
+R0064,PO-5064,V024,Vendor 018,137.31,2025-10-04,standard,regular order,competitive bid,none,0,137.31,587.33,True,True
+R0065,PO-5065,V009,Vendor 028,9064,2025-10-10,standard,regular order,competitive bid,none,0,9064,9037.59,True,True
+R0066,PO-5066,V019,Vendor 028,27494.52,2025-10-12,standard,regular order,competitive bid,none,1,27494.52,27925.21,True,True
+R0067,PO-5067,V008,Vendor 021,1461.38,2025-11-02,standard,regular order,competitive bid,none,1,1461.38,1885.92,True,True
+R0068,PO-5068,V013,Vendor 006,749.14,2025-09-04,standard,regular order,competitive bid,none,0,,,False,True
+R0069,PO-5069,V015,Vendor 019,1008.24,2025-11-03,emergency,urgent emergency single source,competitive bid,none,1,1008.24,1284.81,True,False
+R0070,PO-5070,V009,Vendor 021,196032.57,2025-10-12,standard,regular order,competitive bid,none,1,196032.57,196368.88,True,True
+R0071,PO-5071,V001,Vendor 028,194.92,2025-09-30,standard,regular order,competitive bid,none,0,194.92,423.1,True,True
+R0072,PO-5072,V006,Vendor 030,5077.95,2025-11-22,standard,regular order,competitive bid,none,0,5077.95,5135.62,True,True
+R0073,PO-5073,V014,Vendor 026,670.91,2025-10-17,standard,regular order,competitive bid,none,0,670.91,489.95,True,True
+R0074,PO-5074,V017,Vendor 024,80256.45,2025-11-18,standard,regular order,competitive bid,none,0,80256.45,80166.26,True,True
+R0075,PO-5075,V011,Vendor 014,428.99,2025-10-09,standard,regular order,competitive bid,none,1,428.99,255.26,True,True
+R0076,PO-5076,V016,Vendor 016,1153.74,2025-11-22,standard,regular order,competitive bid,value_increase,2,1153.74,1427.59,True,True
+R0077,PO-5077,V015,Vendor 011,2184.34,2025-11-09,standard,regular order,competitive bid,none,1,2184.34,2247.09,True,True
+R0078,PO-5078,V009,Vendor 027,9908,2025-11-10,standard,regular order,competitive bid,none,0,9908,9907.05,True,True
+R0079,PO-5079,V001,Vendor 011,27757.95,2025-09-07,standard,regular order,competitive bid,none,1,27757.95,28066.1,True,True
+R0080,PO-5080,V008,Vendor 021,242391.2,2025-09-03,standard,regular order,competitive bid,none,1,242391.2,242515.73,True,True
+R0081,PO-5081,V020,Vendor 030,798.84,2025-10-13,standard,regular order,competitive bid,none,1,798.84,1244.77,True,True
+R0082,PO-5082,V001,Vendor 012,7246.53,2025-11-06,standard,regular order,competitive bid,none,0,7246.53,7079.24,True,True
+R0083,PO-5083,V002,Vendor 006,121155.36,2025-11-22,standard,regular order,competitive bid,none,0,121155.36,121419.02,True,True
+R0084,PO-5084,V022,Vendor 024,4237.37,2025-09-20,standard,regular order,competitive bid,none,0,4237.37,4502.58,True,True
+R0085,PO-5085,V012,Vendor 007,141.38,2025-10-01,standard,regular order,competitive bid,none,0,,,False,True
+R0086,PO-5086,V022,Vendor 004,113.05,2025-11-21,standard,regular order,competitive bid,none,1,113.05,208.21,True,True
+R0087,PO-5087,V019,Vendor 002,97984.71,2025-10-12,standard,regular order,sole source — exclusive partner,none,0,97984.71,98130.03,True,False
+R0088,PO-5088,V011,Vendor 014,151.78,2025-09-05,standard,regular order,competitive bid,none,1,151.78,31.29,True,True
+R0089,PO-5089,V010,Vendor 015,722.14,2025-09-17,standard,regular order,competitive bid,none,0,722.14,846.16,True,True
+R0090,PO-5090,V001,Vendor 003,12446.55,2025-11-05,standard,regular order,competitive bid,none,1,12446.55,12523.27,True,True
+R0091,PO-5091,V012,Vendor 025,9738,2025-11-11,standard,regular order,competitive bid,none,0,9738,10101.51,True,True
+R0092,PO-5092,V029,Vendor 025,93617.88,2025-09-25,emergency,urgent emergency single source,competitive bid,none,1,93617.88,93929.5,True,False
+R0093,PO-5093,V005,Vendor 023,138610.36,2025-11-08,standard,regular order,competitive bid,none,1,138610.36,138792.54,True,True
+R0094,PO-5094,V007,Vendor 010,62198.0,2025-09-08,standard,regular order,competitive bid,none,0,62198.0,62555.67,True,True
+R0095,PO-5095,V019,Vendor 022,101598.89,2025-09-29,standard,regular order,competitive bid,none,0,101598.89,102067.88,True,True
+R0096,PO-5096,V026,Vendor 016,9446.88,2025-10-20,standard,regular order,competitive bid,none,1,9446.88,9504.75,True,True
+R0097,PO-5097,V001,Vendor 002,7302.88,2025-10-25,standard,regular order,competitive bid,none,1,7302.88,7496.52,True,True
+R0098,PO-5098,V002,Vendor 028,55085.25,2025-11-28,standard,regular order,competitive bid,none,1,55085.25,55132.11,True,True
+R0099,PO-5099,V013,Vendor 021,209676.85,2025-10-01,standard,regular order,competitive bid,none,1,209676.85,209502.41,True,True
+R0100,PO-5100,V019,Vendor 007,4956.93,2025-10-19,standard,regular order,competitive bid,none,1,4956.93,5313.98,True,True
+R0101,PO-5101,V018,Vendor 025,118879.2,2025-11-17,standard,regular order,competitive bid,none,1,118879.2,118780.85,True,True
+R0102,PO-5102,V029,Vendor 004,111831.89,2025-10-27,standard,regular order,competitive bid,none,1,,,False,True
+R0103,PO-5103,V028,Vendor 010,407.89,2025-11-16,standard,regular order,competitive bid,none,1,407.89,874.26,True,True
+R0104,PO-5104,V014,Vendor 019,9105,2025-10-07,standard,regular order,competitive bid,none,1,9105,9516.03,True,True
+R0105,PO-5105,V003,Vendor 005,45182.0,2025-10-17,standard,regular order,competitive bid,none,0,45182.0,44988.29,True,True
+R0106,PO-5105,V008,Vendor 010,13840.66,2025-10-09,standard,regular order,competitive bid,none,0,13840.66,14080.15,True,True
+R0107,PO-5107,V009,Vendor 018,6394.42,2025-09-11,standard,regular order,competitive bid,none,1,6394.42,6877.2,True,True
+R0108,PO-5108,V011,Vendor 008,6178.67,2025-10-06,standard,regular order,competitive bid,none,0,6178.67,6232.71,True,True
+R0109,PO-5109,V014,Vendor 007,11208.14,2025-11-27,standard,regular order,competitive bid,none,1,11208.14,11242.82,True,True
+R0110,PO-5110,V024,Vendor 010,283.05,2025-10-04,standard,regular order,competitive bid,none,0,283.05,301.52,True,True
+R0111,PO-5111,V023,Vendor 001,606.67,2025-09-07,standard,regular order,competitive bid,none,1,606.67,1030.35,True,True
+R0112,PO-5112,V026,Vendor 013,303.97,2025-11-04,standard,regular order,competitive bid,none,0,303.97,523.52,True,True
+R0113,PO-5113,V001,Vendor 022,37685.42,2025-09-04,standard,regular order,competitive bid,none,1,37685.42,38028.49,True,True
+R0114,PO-5114,V010,Vendor 007,195.5,2025-09-02,standard,regular order,competitive bid,none,0,195.5,-3.27,True,True
+R0115,PO-5115,V030,Vendor 009,3873.77,2025-09-26,emergency,urgent emergency single source,competitive bid,none,0,3873.77,4000.56,True,False
+R0116,PO-5116,V023,Vendor 007,702.57,2025-10-19,standard,regular order,sole source — exclusive partner,none,0,702.57,698.91,True,False
+R0117,PO-5117,V025,Vendor 025,9981,2025-10-19,standard,regular order,competitive bid,none,0,9981,10069.12,True,True
+R0118,PO-5118,V012,Vendor 006,674.42,2025-11-20,standard,regular order,competitive bid,none,0,674.42,800.68,True,True
+R0119,PO-5119,V028,Vendor 013,11930.33,2025-09-06,standard,regular order,competitive bid,none,0,,,False,True
+R0120,PO-5120,V017,Vendor 011,3969.53,2025-11-16,standard,regular order,competitive bid,none,0,3969.53,3987.35,True,True
+R0121,PO-5121,V014,Vendor 022,1069.01,2025-10-04,standard,regular order,competitive bid,none,1,1069.01,1091.03,True,True
+R0122,PO-5122,V013,Vendor 005,32192.64,2025-10-23,standard,regular order,competitive bid,none,1,32192.64,32094.0,True,True
+R0123,PO-5123,V014,Vendor 016,294.27,2025-09-23,standard,regular order,competitive bid,none,1,294.27,533.24,True,True
+R0124,PO-5124,V009,Vendor 026,1658.83,2025-09-21,standard,regular order,competitive bid,none,1,1658.83,1529.18,True,True
+R0125,PO-5125,V012,Vendor 023,112.86,2025-09-28,standard,regular order,competitive bid,none,1,112.86,463.77,True,True
+R0126,PO-5126,V028,Vendor 003,156.1,2025-09-30,standard,regular order,competitive bid,none,0,156.1,128.74,True,True
+R0127,PO-5127,V012,Vendor 014,4510.54,2025-10-14,standard,regular order,competitive bid,none,1,4510.54,4341.13,True,True
+R0128,PO-5128,V019,Vendor 006,219.11,2025-09-04,standard,regular order,competitive bid,none,1,219.11,633.62,True,True
+R0129,PO-5129,V011,Vendor 011,38026.15,2025-11-28,standard,regular order,competitive bid,none,0,38026.15,38421.81,True,True
+R0130,PO-5130,V011,Vendor 020,9886,2025-11-06,standard,regular order,competitive bid,none,0,9886,10011.86,True,True
+R0131,PO-5131,V020,Vendor 005,684.79,2025-10-25,standard,regular order,competitive bid,none,1,684.79,1018.36,True,True
+R0132,PO-5132,V014,Vendor 003,8645.11,2025-10-20,standard,regular order,competitive bid,none,0,8645.11,8996.72,True,True
+R0133,PO-5133,V029,Vendor 015,16372.01,2025-09-24,standard,regular order,competitive bid,none,1,16372.01,16870.51,True,True
+R0134,PO-5134,V022,Vendor 025,319.92,2025-11-10,standard,regular order,competitive bid,none,1,319.92,649.26,True,True
+R0135,PO-5135,V021,Vendor 018,166194.77,2025-10-03,standard,regular order,competitive bid,none,1,166194.77,166622.43,True,True
+R0136,PO-5136,V003,Vendor 015,54343.66,2025-10-11,standard,regular order,competitive bid,none,1,,,False,True
+R0137,PO-5137,V002,Vendor 028,9251.34,2025-09-25,standard,regular order,competitive bid,none,1,9251.34,9113.78,True,True
+R0138,PO-5138,V019,Vendor 021,404.63,2025-11-25,emergency,urgent emergency single source,competitive bid,none,1,404.63,782.42,True,False
+R0139,PO-5139,V024,Vendor 018,107007.33,2025-09-04,standard,regular order,competitive bid,none,0,107007.33,106932.83,True,True
