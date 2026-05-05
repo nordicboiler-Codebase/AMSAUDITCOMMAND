@@ -13,6 +13,7 @@ from backend.core.db import get_db
 from backend.core.security import get_current_user
 from backend.models import Dataset, TestRun, User
 from backend.services import acl, test_runner
+from backend.templates.catalog import TemplateError
 
 router = APIRouter()
 
@@ -41,10 +42,29 @@ def _assert_dataset_permission(db, dataset_id, user, permission):
 def run_detector(body: DetectorRunIn, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)) -> dict:
     _assert_dataset_permission(db, body.dataset_id, user, acl.Permission.EDIT)
-    run = test_runner.run_detector(
-        db, dataset_id=body.dataset_id, detector_name=body.detector_name,
-        params=body.params, user_id=user.id,
-    )
+    try:
+        run = test_runner.run_detector(
+            db, dataset_id=body.dataset_id, detector_name=body.detector_name,
+            params=body.params, user_id=user.id,
+        )
+    except KeyError as e:
+        raise HTTPException(
+            status_code=404, detail=f"Detector not found: {e}"
+        ) from e
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Dataset parquet file is missing on the backend. "
+                "If you moved environments, re-import the dataset. "
+                f"Details: {e}"
+            ),
+        ) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=422,
+            detail=f"{type(e).__name__}: {str(e)[:500]}",
+        ) from e
     return _out(run)
 
 
@@ -52,10 +72,32 @@ def run_detector(body: DetectorRunIn, db: Session = Depends(get_db),
 def run_template(body: TemplateRunIn, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)) -> dict:
     _assert_dataset_permission(db, body.dataset_id, user, acl.Permission.EDIT)
-    run = test_runner.run_template(
-        db, dataset_id=body.dataset_id, template_code=body.template_code,
-        param_overrides=body.param_overrides, user_id=user.id,
-    )
+    try:
+        run = test_runner.run_template(
+            db, dataset_id=body.dataset_id, template_code=body.template_code,
+            param_overrides=body.param_overrides, user_id=user.id,
+        )
+    except TemplateError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except KeyError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Template references a detector that doesn't exist: {e}",
+        ) from e
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Dataset parquet file is missing on the backend. "
+                "If you moved environments, re-import the dataset. "
+                f"Details: {e}"
+            ),
+        ) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=422,
+            detail=f"{type(e).__name__}: {str(e)[:500]}",
+        ) from e
     return _out(run)
 
 
