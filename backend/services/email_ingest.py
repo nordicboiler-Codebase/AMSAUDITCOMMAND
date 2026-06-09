@@ -26,6 +26,7 @@ import uuid
 import zipfile
 from datetime import datetime, timezone
 from email import policy
+from email.header import decode_header, make_header
 from email.message import Message
 from email.parser import BytesParser, Parser
 from email.utils import getaddresses, parsedate_to_datetime
@@ -53,6 +54,19 @@ BODY_EXCERPT_CHARS = 4000
 
 class PstSupportMissing(RuntimeError):
     """Raised when a .pst is uploaded but libpff-python isn't installed."""
+
+
+def _decode_mime_header(value: str | None) -> str | None:
+    """Decode RFC2047 encoded-word headers (e.g. Arabic subjects arrive as
+    '=?utf-8?b?...?='). Returns a plain Unicode string."""
+    if not value:
+        return value
+    if "=?" not in value:
+        return value
+    try:
+        return str(make_header(decode_header(value)))
+    except Exception:  # noqa: BLE001 — malformed header, keep raw
+        return value
 
 
 def _addr_list(value: str | None) -> list[str]:
@@ -180,7 +194,7 @@ def _stdlib_msg_to_row(msg: Message, *, custodian: str, folder: str) -> dict[str
     if msg.get("From"):
         pairs = getaddresses([msg.get("From")])
         if pairs:
-            sender_name = pairs[0][0] or None
+            sender_name = _decode_mime_header(pairs[0][0]) or None
     return _row(
         custodian=custodian,
         folder=folder,
@@ -192,7 +206,7 @@ def _stdlib_msg_to_row(msg: Message, *, custodian: str, folder: str) -> dict[str
         to=_addr_list(msg.get("To")),
         cc=_addr_list(msg.get("Cc")),
         bcc=_addr_list(msg.get("Bcc")),
-        subject=msg.get("Subject"),
+        subject=_decode_mime_header(msg.get("Subject")),
         body=_message_body(msg),
         attachment_names=_message_attachments(msg),
     )
@@ -246,7 +260,7 @@ def _pst_message_to_row(msg, *, custodian: str, folder: str) -> dict[str, Any]:
     if not sender_name and hdr and hdr.get("From"):
         pairs = getaddresses([hdr.get("From")])
         if pairs:
-            sender_name = pairs[0][0] or None
+            sender_name = _decode_mime_header(pairs[0][0]) or None
 
     body = msg.plain_text_body
     if isinstance(body, bytes):
@@ -279,7 +293,7 @@ def _pst_message_to_row(msg, *, custodian: str, folder: str) -> dict[str, Any]:
         to=_addr_list(hdr.get("To")) if hdr else [],
         cc=_addr_list(hdr.get("Cc")) if hdr else [],
         bcc=_addr_list(hdr.get("Bcc")) if hdr else [],
-        subject=msg.subject,
+        subject=_decode_mime_header(msg.subject),
         body=body,
         attachment_names=attachment_names,
     )

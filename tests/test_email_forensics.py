@@ -55,6 +55,29 @@ def test_mbox_ingest(tmp_path):
     assert cc_row["recipient_count"] == 2
 
 
+def test_arabic_mime_header_decoded(tmp_path):
+    """Arabic subjects/display-names arrive RFC2047-encoded — must be decoded."""
+    import mailbox
+    from email.message import EmailMessage
+
+    from backend.services import email_ingest
+
+    p = tmp_path / "ar.mbox"
+    box = mailbox.mbox(str(p))
+    m = EmailMessage()
+    m["From"] = "عائشة خان <a.khan@corp.ae>"
+    m["To"] = "x@gmail.com"
+    m["Subject"] = "فاتورة سرية للعميل"
+    m["Date"] = "Fri, 06 Mar 2026 21:00:00 +0400"
+    m.set_content("مرفق قائمة الأسعار", charset="utf-8")
+    box.add(mailbox.mboxMessage(m))
+    box.flush()
+    box.close()
+    row = email_ingest.parse_mail_file(p).to_dicts()[0]
+    assert row["subject"] == "فاتورة سرية للعميل"
+    assert row["sender_name"] == "عائشة خان"
+
+
 def test_merge_multiple_files_keeps_custodians(tmp_path):
     from backend.services import email_ingest
 
@@ -203,3 +226,135 @@ def test_email_search_refuses_empty_criteria(detector_catalog):
     res = det.run(_email_df(), det.default_params)
     assert res.summary["flagged_count"] == 0
     assert res.summary["reason"] == "no_search_criteria"
+
+
+# --- Arabic + richer params -------------------------------------------------
+
+def test_arabic_folding():
+    from backend.detectors.email_forensics import fold_arabic
+
+    assert fold_arabic("فاتورة") == fold_arabic("فاتوره")   # taa marbuta
+    assert fold_arabic("أحمد") == fold_arabic("احمد")        # alef hamza
+    assert fold_arabic("الأسعار") == "الاسعار"
+    assert fold_arabic("١٢٣") == "123"                        # arabic-indic digits
+    assert fold_arabic("hello") == "hello"                    # ascii untouched
+
+
+def _arabic_df() -> pl.DataFrame:
+    rows = [
+        dict(custodian="akhan", direction="SENT",
+             sender_email="a.khan@corp.com", sender_domain="corp.com",
+             all_recipients="x@yahoo.com", recipient_domains="yahoo.com",
+             subject="عرض الأسعار النهائي", body_excerpt="مرفق قائمة الأسعار والفاتورة السرية",
+             has_attachments=True, attachment_names="فاتورة.pdf", folder="Sent",
+             is_after_hours=True, is_weekend=False,
+             sent_at=datetime(2026, 2, 7, 21, tzinfo=timezone.utc), record_id="AR1"),
+        dict(custodian="jsmith", direction="SENT",
+             sender_email="j.smith@corp.com", sender_domain="corp.com",
+             all_recipients="team@corp.com", recipient_domains="corp.com",
+             subject="lunch plans", body_excerpt="see you at one",
+             has_attachments=False, attachment_names=None, folder="Sent",
+             is_after_hours=False, is_weekend=False,
+             sent_at=datetime(2026, 2, 8, 12, tzinfo=timezone.utc), record_id="EN1"),
+    ]
+    return pl.DataFrame(rows)
+
+
+def test_email_search_arabic_keyword_variant(detector_catalog):
+    det = detector_catalog.get("email_search")
+    # query with taa-marbuta variant should still match body spelling
+    res = det.run(_arabic_df(), {**det.default_params, "keywords": ["فاتوره"]})
+    assert res.summary["flagged_count"] == 1
+    assert res.per_record_scores[0].record_key  # matched the Arabic row
+
+
+def test_email_search_personal_only_and_exclude(detector_catalog):
+    det = detector_catalog.get("email_search")
+    res = det.run(_arabic_df(), {
+        **det.default_params,
+        "personal_recipients_only": True,
+        "keywords": ["أسعار", "pricing"],
+        "exclude_keywords": ["lunch"],
+    })
+    assert res.summary["flagged_count"] == 1  # only the Arabic personal-recipient row
+
+
+def test_email_search_sender_in_list(detector_catalog):
+    det = detector_catalog.get("email_search")
+    res = det.run(_email_df(), {**det.default_params, "sender_in": ["a.khan", "nobody"]})
+    custs = set(res.flagged["custodian"].to_list())
+    assert custs == {"akhan"}
+
+
+def test_email_search_max_results_truncates(detector_catalog):
+    det = detector_catalog.get("email_search")
+    res = det.run(_email_df(), {**det.default_params, "custodian": "", "external_only": False,
+                                "personal_recipients_only": True, "max_results": 1})
+    assert res.summary["flagged_count"] == 1
+    assert res.summary["truncated"] is True
+
+
+# --- Deep-search compile-and-run (mocked LLM) -------------------------------
+
+def test_compile_and_run_email_search(tmp_path, monkeypatch):
+    import json as _json
+    import uuid
+    from unittest.mock import MagicMock
+
+    from backend.services import nlq
+
+    df = _email_df()
+    pq = tmp_path / "mb.parquet"
+    df.write_parquet(pq)
+
+    ds = MagicMock()
+    ds.subledger_type.value = "EMAIL"
+    ds.name = "MB"
+    ds.record_count = df.height
+    ds.schema_json = {c: "str" for c in df.columns}
+    ds.parquet_path = str(pq)
+    ds.project_id = uuid.uuid4()
+    fake_db = MagicMock()
+    fake_db.get.return_value = ds
+
+    plan = {
+        "clauses": [{"label": "to personal", "params": {
+            "personal_recipients_only": True}}],
+        "combine": "union",
+        "interpretation": "Messages to personal accounts.",
+        "rationale": "x",
+    }
+    client = MagicMock()
+    client.provider = "anthropic"
+    client.model = "claude-sonnet-4-6"
+    client.complete.return_value = "plan:\n" + _json.dumps(plan)
+
+    monkeypatch.setattr(nlq, "_get_client", lambda db: client)
+    monkeypatch.setattr(nlq.audit_log, "log_action", lambda *a, **k: None)
+
+    out = nlq.compile_and_run_email_search(
+        fake_db, dataset_id=uuid.uuid4(), prompt="leaks to personal email",
+        user_id=uuid.uuid4(),
+    )
+    assert out["total"] == 3  # rows 0, 2, 3 hit personal gmail in _email_df
+    assert out["returned"] == 3
+    assert out["clauses"][0]["matched"] == 3
+    assert all("match_reason" in m for m in out["messages"])
+    # client was actually invoked with the compiler system prompt
+    assert client.complete.called
+
+
+def test_compile_and_run_rejects_non_email_dataset(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    from backend.services import nlq
+
+    ds = MagicMock()
+    ds.subledger_type.value = "ACCOUNTS_PAYABLE"
+    fake_db = MagicMock()
+    fake_db.get.return_value = ds
+    with pytest.raises(ValueError, match="EMAIL datasets"):
+        nlq.compile_and_run_email_search(
+            fake_db, dataset_id=uuid.uuid4(), prompt="x", user_id=uuid.uuid4(),
+        )

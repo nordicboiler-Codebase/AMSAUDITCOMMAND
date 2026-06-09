@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
 from typing import Any
 
 import polars as pl
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import get_settings
 from backend.detectors import catalog as det_catalog
+from backend.detectors.base import add_key_column
 from backend.models import AuditAction, Dataset, Finding, TestRun
 from backend.services import audit_log, llm
 from backend.services.import_service import resolve_parquet_path
@@ -38,10 +40,16 @@ EMAIL DATASET GUIDANCE (this dataset is an imported mailbox — one row per mess
 - Search-style questions ("find mails from/to/about X", "show emails with
   attachments to gmail in March") → choose the email_search template and fill
   its params: keywords (list, matches subject+body+attachment names),
-  sender_contains, recipient_contains (substring OR a domain like "gmail.com"),
-  subject_contains, custodian, date_from/date_to (YYYY-MM-DD), has_attachments
-  (true/false/null), attachment_name_contains, after_hours_only, external_only,
-  regex.
+  exclude_keywords, sender_contains, sender_in (list), recipient_contains
+  (substring OR a domain like "gmail.com"), recipient_domain_in (list),
+  personal_recipients_only (bool — for "personal/private email"),
+  subject_contains, custodian, direction (SENT/RECEIVED), date_from/date_to
+  (YYYY-MM-DD), has_attachments (true/false/null), attachment_name_contains,
+  after_hours_only, weekend_only, external_only, regex. Arabic keywords are
+  matched with spelling-variant folding, so pass the user's Arabic terms as-is.
+- For a long, multi-condition request, prefer the dedicated deep-search
+  endpoint (POST /api/datasets/{id}/email-search) which compiles the whole
+  prompt into a multi-clause plan and returns matching messages directly.
 - "Leaked to personal ids / private email / gmail" → choose the email_dlp
   template (optionally set require_attachment or require_keyword, or extend
   sensitive_keywords with terms from the question).
@@ -383,6 +391,205 @@ Return ONLY valid JSON with this schema:
   "tags": ["..."],
   "rationale": "Why this detector + these params answer the auditor's question."
 }"""
+
+
+EMAIL_SEARCH_COMPILER_SYSTEM = """You compile a detailed plain-English (or
+Arabic) investigation request into a STRUCTURED SEARCH PLAN over a mailbox
+dataset (one row per email message). You do not answer the question — you
+translate it into machine-runnable filters.
+
+The dataset rows have these searchable fields: custodian (mailbox owner),
+sender_email, sender_domain, all_recipients, recipient_domains, subject,
+body_excerpt, attachment_names, has_attachments, sent_at (UTC), is_after_hours,
+is_weekend, folder, direction (SENT/RECEIVED).
+
+A plan is a list of CLAUSES. Each clause is one parameter set for the
+email_search engine. Clauses are combined with OR (a message matches the plan
+if it matches ANY clause) when combine="union", or AND when combine="intersect".
+Within a single clause, every non-empty parameter must hold (AND), and list
+parameters match ANY of their members.
+
+Use MULTIPLE clauses only when the request needs OR across criteria that can't
+live in one clause (e.g. "from Ali OR anyone in finance" → one clause per
+group). Prefer the list parameters (sender_in, recipient_domain_in, keywords)
+to keep the plan small. Most requests are a single clause.
+
+email_search parameters (all optional; omit what you don't need):
+- keywords: list[str] — ANY appears in subject/body/attachment names
+- match_all_keywords: bool — require ALL keywords instead of ANY
+- exclude_keywords: list[str] — drop the message if ANY appears
+- sender_contains: str ; sender_in: list[str] — sender matches ANY substring
+- recipient_contains: str — substring or a single domain
+- recipient_domain_in: list[str] — recipient on ANY of these domains
+- personal_recipients_only: bool — recipient on a personal/free provider
+  (gmail/yahoo/hotmail/outlook/icloud/proton/… — use this for "personal email",
+  "private account", "non-corporate")
+- subject_contains: str ; exclude_subject_contains: str
+- custodian: str — restrict to one mailbox owner
+- folder_contains: str — e.g. "sent", "deleted"
+- direction: "SENT" | "RECEIVED"
+- date_from / date_to: "YYYY-MM-DD" (inclusive)
+- has_attachments: true | false
+- attachment_name_contains: str
+- after_hours_only: bool (before 07:00 / after 20:00 local)
+- weekend_only: bool
+- external_only: bool — recipient domain differs from the sender's
+- regex: str — applied to subject+body (use sparingly)
+
+Rules:
+- Keep the user's Arabic terms AS-IS in keywords — the engine folds Arabic
+  spelling variants automatically. Add obvious English synonyms too when the
+  intent is clear (e.g. "أسعار" → also "price","pricing").
+- Resolve relative dates against the provided CURRENT DATE.
+- Never invent a custodian/sender name the user didn't mention; use substrings
+  of the names they gave.
+- If the request has no usable filter, return an empty clauses list and explain
+  in "interpretation".
+
+Return ONLY valid JSON:
+{
+  "clauses": [ {"label": "short label", "params": { ...email_search params... }}, ... ],
+  "combine": "union" | "intersect",
+  "interpretation": "one sentence restating exactly what will be searched",
+  "rationale": "why these clauses/params"
+}"""
+
+
+def compile_and_run_email_search(
+    db: Session, *, dataset_id: uuid.UUID, prompt: str, user_id: uuid.UUID,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Compile a detailed NL prompt into an email_search plan via the LLM, run
+    every clause against the dataset, union/intersect the results, and return
+    the matching messages directly.
+
+    This is the one-shot "natural-language deep search" path: prompt in,
+    matching emails out — distinct from nl_to_template which only proposes a
+    template for the user to run by hand.
+    """
+    from datetime import date as _date
+
+    from backend.detectors import catalog as det_catalog
+    from backend.services.import_service import resolve_parquet_path
+
+    dataset = db.get(Dataset, dataset_id)
+    if not dataset:
+        raise ValueError("Dataset not found")
+    if dataset.subledger_type.value != "EMAIL":
+        raise ValueError("Email search only applies to EMAIL datasets (import mailboxes first).")
+
+    client = _get_client(db)
+    if client is None:
+        return {"error": _stub_reason(db),
+                "interpretation": "Configure an AI provider in Settings → AI Providers.",
+                "clauses": [], "messages": [], "total": 0}
+
+    user_prompt = f"""CURRENT DATE: {_date.today().isoformat()}
+
+DATASET: {dataset.name} — {dataset.record_count} messages.
+Columns present: {json.dumps(list(dataset.schema_json.keys()))}
+
+INVESTIGATION REQUEST:
+{prompt}
+
+Compile the search plan. Return JSON only."""
+
+    text = client.complete(
+        system=EMAIL_SEARCH_COMPILER_SYSTEM, user=user_prompt,
+        max_tokens=1800, temperature=0.1,
+    )
+    try:
+        start = text.index("{")
+        end = text.rindex("}") + 1
+        plan = json.loads(text[start:end])
+    except (ValueError, json.JSONDecodeError) as e:
+        audit_log.log_action(
+            db, user_id=user_id, action=AuditAction.NLQ, entity_type="dataset",
+            entity_id=str(dataset_id),
+            details={"kind": "email_search", "prompt": prompt[:500],
+                     "provider": client.provider, "model": client.model,
+                     "error": f"unparseable_plan:{e}"},
+        )
+        db.commit()
+        return {"error": f"Could not parse the search plan: {e}", "raw": text,
+                "clauses": [], "messages": [], "total": 0}
+
+    clauses = plan.get("clauses") or []
+    combine = (plan.get("combine") or "union").lower()
+    if not clauses:
+        return {
+            "interpretation": plan.get("interpretation",
+                                       "No usable filters could be derived from the request."),
+            "rationale": plan.get("rationale", ""),
+            "clauses": [], "messages": [], "total": 0,
+            "provider": client.provider, "model": client.model,
+        }
+
+    det_catalog.load_all()
+    detector = det_catalog.get("email_search")
+    df = pl.read_parquet(resolve_parquet_path(dataset.parquet_path))
+
+    # Run each clause; collect matched record keys + the reason from each clause.
+    key_reasons: dict[str, list[str]] = {}
+    per_clause_counts: list[dict] = []
+    matched_sets: list[set[str]] = []
+    for clause in clauses:
+        params = {**(detector.default_params or {}), **(clause.get("params") or {})}
+        result = detector.run(df, params)
+        clause_keys = set(result.flagged["_record_key"].to_list()) if result.flagged.height else set()
+        matched_sets.append(clause_keys)
+        label = clause.get("label") or "clause"
+        for s in result.per_record_scores or []:
+            key_reasons.setdefault(s.record_key, []).append(f"[{label}] {s.reason}")
+        per_clause_counts.append({"label": label, "matched": len(clause_keys),
+                                  "params": clause.get("params") or {}})
+
+    if combine == "intersect" and matched_sets:
+        final_keys = set.intersection(*matched_sets)
+    else:
+        final_keys = set().union(*matched_sets) if matched_sets else set()
+
+    df_keyed = add_key_column(df)
+    matched = df_keyed.filter(pl.col("_record_key").is_in(list(final_keys)))
+    if "sent_at" in matched.columns:
+        matched = matched.sort("sent_at", descending=True, nulls_last=True)
+
+    display_cols = [c for c in [
+        "sent_at", "custodian", "direction", "sender_email", "all_recipients",
+        "subject", "has_attachments", "attachment_names", "folder", "_record_key",
+    ] if c in matched.columns]
+    head = matched.select(display_cols).head(limit)
+    messages = []
+    for row in head.to_dicts():
+        rk = row.get("_record_key")
+        row["match_reason"] = "; ".join(key_reasons.get(rk, [])[:6])
+        if isinstance(row.get("sent_at"), (datetime,)):
+            row["sent_at"] = row["sent_at"].isoformat()
+        messages.append(row)
+
+    audit_log.log_action(
+        db, user_id=user_id, action=AuditAction.NLQ, entity_type="dataset",
+        entity_id=str(dataset_id),
+        details={
+            "kind": "email_search", "prompt": prompt[:500],
+            "provider": client.provider, "model": client.model,
+            "combine": combine, "clauses": per_clause_counts,
+            "total_matched": len(final_keys),
+            "interpretation": (plan.get("interpretation") or "")[:300],
+        },
+    )
+    db.commit()
+    return {
+        "interpretation": plan.get("interpretation", ""),
+        "rationale": plan.get("rationale", ""),
+        "combine": combine,
+        "clauses": per_clause_counts,
+        "total": len(final_keys),
+        "returned": len(messages),
+        "messages": messages,
+        "provider": client.provider,
+        "model": client.model,
+    }
 
 
 def generate_template_from_description(

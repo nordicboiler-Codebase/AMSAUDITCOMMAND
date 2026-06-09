@@ -226,6 +226,22 @@ enterprise controls are now in place:
     via autocommit block). Sample mailboxes `samples/email_*.mbox` with planted
     leak/collusion signals; "Import mailboxes (PST)" dialog in the Datasets UI.
 
+49. **Natural-language deep email search** — `POST /api/datasets/{id}/email-search`
+    (`nlq.compile_and_run_email_search`). A detailed prompt (English or Arabic)
+    is compiled by the active AI provider into a multi-clause `email_search`
+    plan (`EMAIL_SEARCH_COMPILER_SYSTEM`), every clause is executed, results are
+    unioned/intersected, and the matching messages are returned directly —
+    prompt in, emails out (distinct from `nl_to_template`, which only proposes).
+    The `email_search` detector gained richer params (`sender_in`,
+    `recipient_domain_in`, `personal_recipients_only`, `exclude_keywords`,
+    `exclude_subject_contains`, `direction`, `weekend_only`, `max_results`) and
+    **Arabic folding** (`fold_arabic`): diacritics/tatweel stripped, alef/yaa/
+    taa-marbuta variants + Arabic-Indic digits normalised on both the indexed
+    text and the query, so mixed EN/AR UAE mailboxes match regardless of
+    spelling variant. UI: "Deep email search" panel in the Run page Ask-AI tab
+    (RTL-aware `dir="auto"`), shown for EMAIL datasets, with a results table and
+    per-message match reasons.
+
 Remaining Phase D+ candidates: Redis rate limiter for multi-host deployments,
 mobile/tablet responsive layout, AG Grid in Findings, advanced supervised-ML
 training job that consumes finding_labels, outbound SCIM push to Entra (currently

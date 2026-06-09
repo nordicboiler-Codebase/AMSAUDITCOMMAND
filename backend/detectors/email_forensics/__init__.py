@@ -32,7 +32,40 @@ SENSITIVE_KEYWORDS_DEFAULT = [
     "bank account", "iban", "swift", "statement", "invoice", "p&l",
     "trial balance", "forecast", "budget", "source code", "database dump",
     "backup", "export", "personal data", "passport", "emirates id", "visa",
+    # Common Arabic equivalents (UAE mailboxes are mixed EN/AR).
+    "سري", "خاص", "لا تشارك", "كلمة المرور", "الراتب", "الرواتب", "مكافأة",
+    "فاتورة", "عقد", "اتفاقية", "عطاء", "مناقصة", "عرض سعر", "قائمة الأسعار",
+    "كشف حساب", "حساب بنكي", "آيبان", "ميزانية", "هوية اماراتية", "جواز سفر",
+    "قائمة العملاء", "بيانات شخصية",
 ]
+
+# --- Arabic text folding -----------------------------------------------------
+# UAE corporate mail is mixed English/Arabic. Arabic readers and senders write
+# the same word several ways (with/without diacritics, alef/hamza variants,
+# taa-marbuta vs haa), so naive substring search misses matches. We fold both
+# the indexed text and the query the same way so e.g. "فاتوره" matches
+# "فاتورة" and a query without tashkeel matches a body with tashkeel.
+_AR_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۭـ]")
+_AR_TRANSLATE = {
+    ord("أ"): "ا", ord("إ"): "ا", ord("آ"): "ا", ord("ٱ"): "ا",
+    ord("ى"): "ي", ord("ئ"): "ي",
+    ord("ة"): "ه",
+    ord("ؤ"): "و",
+    ord("ك"): "ك",  # arabic kaf stays; keep map explicit for clarity
+    # Arabic-Indic + Eastern-Arabic digits → ASCII so date/number search works.
+    ord("٠"): "0", ord("١"): "1", ord("٢"): "2", ord("٣"): "3", ord("٤"): "4",
+    ord("٥"): "5", ord("٦"): "6", ord("٧"): "7", ord("٨"): "8", ord("٩"): "9",
+    ord("۰"): "0", ord("۱"): "1", ord("۲"): "2", ord("۳"): "3", ord("۴"): "4",
+    ord("۵"): "5", ord("۶"): "6", ord("۷"): "7", ord("۸"): "8", ord("۹"): "9",
+}
+
+
+def fold_arabic(s: str) -> str:
+    """Normalise Arabic so equivalent spellings match. No-op for pure ASCII."""
+    if not s:
+        return s
+    s = _AR_DIACRITICS.sub("", s)
+    return s.translate(_AR_TRANSLATE)
 
 
 def _split(values: str | None) -> list[str]:
@@ -332,28 +365,43 @@ class EmailSearchDetector:
     """Parameterised mailbox search — the workhorse behind plain-English
     questions on email datasets ("find mails from X to gmail with attachments
     about pricing in March"). Every criterion is optional; criteria combine
-    with AND, while the keyword list matches ANY (or ALL with match_all)."""
+    with AND, while list criteria (keywords, sender_in, recipient_domain_in)
+    match ANY of their members. Text matching folds Arabic spelling variants so
+    mixed English/Arabic UAE mailboxes search correctly.
+
+    The deep-search compiler (services/nlq.py) targets these params, optionally
+    running several parameter sets and unioning their results for prompts that
+    need OR across otherwise-incompatible criteria."""
     name: str = "email_search"
     category: DetectorCategory = DetectorCategory.TEXT
-    description: str = "Search mailbox dataset by sender/recipient/keywords/dates/attachments"
+    description: str = "Search mailbox dataset by sender/recipient/keywords/dates/attachments (Arabic-aware)"
     default_weight: float = 0.5
     default_params: dict[str, Any] = field(
         default_factory=lambda: {
             "keywords": [],              # ANY of these in subject/body/attachment names
             "match_all_keywords": False,
+            "exclude_keywords": [],       # drop a message if ANY of these appear
             "sender_contains": "",
+            "sender_in": [],              # sender matches ANY of these substrings
             "recipient_contains": "",     # substring OR domain (e.g. "gmail.com")
+            "recipient_domain_in": [],    # recipient on ANY of these domains
+            "personal_recipients_only": False,  # recipient on a personal/free provider
             "subject_contains": "",
+            "exclude_subject_contains": "",
             "custodian": "",
             "folder_contains": "",
+            "direction": "",             # "SENT" / "RECEIVED" / "" = any
             "date_from": "",             # YYYY-MM-DD
             "date_to": "",
             "has_attachments": None,      # true / false / null = any
             "attachment_name_contains": "",
             "after_hours_only": False,
+            "weekend_only": False,
             "external_only": False,       # recipient domain differs from sender's
             "regex": "",                 # applied to subject + body
             "case_sensitive": False,
+            "arabic_normalization": True,
+            "max_results": 1000,
         }
     )
     supported_subledgers: list[SubledgerType] | None = field(
@@ -362,25 +410,39 @@ class EmailSearchDetector:
 
     def run(self, df: pl.DataFrame, params: dict[str, Any]) -> DetectorResult:
         cs = bool(params.get("case_sensitive", False))
+        ar = bool(params.get("arabic_normalization", True))
 
         def norm(s: str | None) -> str:
             s = s or ""
-            return s if cs else s.lower()
+            if not cs:
+                s = s.lower()
+            if ar:
+                s = fold_arabic(s)
+            return s
 
         keywords = [norm(k) for k in (params.get("keywords") or []) if str(k).strip()]
+        exclude_keywords = [norm(k) for k in (params.get("exclude_keywords") or []) if str(k).strip()]
         match_all = bool(params.get("match_all_keywords", False))
         sender_q = norm(str(params.get("sender_contains") or ""))
+        sender_in = [norm(s) for s in (params.get("sender_in") or []) if str(s).strip()]
         rcpt_q = norm(str(params.get("recipient_contains") or ""))
+        rcpt_dom_in = [norm(d) for d in (params.get("recipient_domain_in") or []) if str(d).strip()]
+        personal_only = bool(params.get("personal_recipients_only", False))
+        personal_domains = {d.lower() for d in PERSONAL_EMAIL_DOMAINS}
         subj_q = norm(str(params.get("subject_contains") or ""))
+        excl_subj_q = norm(str(params.get("exclude_subject_contains") or ""))
         cust_q = norm(str(params.get("custodian") or ""))
         folder_q = norm(str(params.get("folder_contains") or ""))
+        direction_q = str(params.get("direction") or "").strip().upper()
         att_q = norm(str(params.get("attachment_name_contains") or ""))
         regex_q = str(params.get("regex") or "")
         has_att = params.get("has_attachments", None)
         after_hours = bool(params.get("after_hours_only", False))
+        weekend_only = bool(params.get("weekend_only", False))
         external_only = bool(params.get("external_only", False))
         date_from = str(params.get("date_from") or "")
         date_to = str(params.get("date_to") or "")
+        max_results = int(params.get("max_results", 1000) or 0)
 
         rx = None
         if regex_q:
@@ -400,6 +462,19 @@ class EmailSearchDetector:
         dt_from = parse_date(date_from) if date_from else None
         dt_to = parse_date(date_to) if date_to else None
 
+        has_criteria = bool(
+            keywords or sender_q or sender_in or rcpt_q or rcpt_dom_in
+            or personal_only or subj_q or cust_q or folder_q or direction_q
+            or att_q or rx or has_att is not None or after_hours or weekend_only
+            or external_only or dt_from or dt_to
+        )
+        if not has_criteria:
+            # Refuse to dump the whole mailbox.
+            return DetectorResult(
+                flagged=df.head(0),
+                summary={"flagged_count": 0, "reason": "no_search_criteria"},
+            )
+
         df2 = add_key_column(df)
 
         def col(name: str) -> list:
@@ -412,6 +487,7 @@ class EmailSearchDetector:
         bodies = col("body_excerpt")
         custs = col("custodian")
         folders = col("folder")
+        directions = col("direction")
         atts = col("attachment_names")
         sender_doms = col("sender_domain")
         rcpt_doms = col("recipient_domains")
@@ -419,6 +495,8 @@ class EmailSearchDetector:
                        if "has_attachments" in df2.columns else [None] * df2.height)
         after_col = (df2["is_after_hours"].to_list()
                      if "is_after_hours" in df2.columns else [None] * df2.height)
+        weekend_col = (df2["is_weekend"].to_list()
+                       if "is_weekend" in df2.columns else [None] * df2.height)
         sent_col = (df2["sent_at"].to_list()
                     if "sent_at" in df2.columns else [None] * df2.height)
         keys = df2["_record_key"].to_list()
@@ -427,18 +505,37 @@ class EmailSearchDetector:
         scores: list[PerRecordScore] = []
         for i in range(df2.height):
             crit_hits: list[str] = []
+            if sender_q and sender_q not in norm(senders[i]):
+                continue
             if sender_q:
-                if sender_q not in norm(senders[i]):
-                    continue
                 crit_hits.append(f"sender~{sender_q}")
+            if sender_in:
+                ns = norm(senders[i])
+                hit = next((s for s in sender_in if s in ns), None)
+                if hit is None:
+                    continue
+                crit_hits.append(f"sender∈{hit}")
             if rcpt_q:
                 if rcpt_q not in norm(rcpts[i]) and rcpt_q not in norm(rcpt_doms[i]):
                     continue
                 crit_hits.append(f"recipient~{rcpt_q}")
+            if rcpt_dom_in:
+                rds = {norm(d) for d in _split(rcpt_doms[i])}
+                hit = next((d for d in rcpt_dom_in if d in rds), None)
+                if hit is None:
+                    continue
+                crit_hits.append(f"recipient-domain∈{hit}")
+            if personal_only:
+                rds = {d for d in _split(rcpt_doms[i])}
+                if not (rds & personal_domains):
+                    continue
+                crit_hits.append("personal-recipient")
             if subj_q:
                 if subj_q not in norm(subjects[i]):
                     continue
                 crit_hits.append(f"subject~{subj_q}")
+            if excl_subj_q and excl_subj_q in norm(subjects[i]):
+                continue
             if cust_q:
                 if cust_q not in norm(custs[i]):
                     continue
@@ -447,6 +544,10 @@ class EmailSearchDetector:
                 if folder_q not in norm(folders[i]):
                     continue
                 crit_hits.append(f"folder~{folder_q}")
+            if direction_q:
+                if (directions[i] or "").upper() != direction_q:
+                    continue
+                crit_hits.append(direction_q.lower())
             if att_q:
                 if att_q not in norm(atts[i]):
                     continue
@@ -454,6 +555,8 @@ class EmailSearchDetector:
             if has_att is not None and bool(has_att) != bool(has_att_col[i]):
                 continue
             if after_hours and not after_col[i]:
+                continue
+            if weekend_only and not weekend_col[i]:
                 continue
             if external_only:
                 sd = (sender_doms[i] or "").lower()
@@ -470,9 +573,12 @@ class EmailSearchDetector:
                     continue
                 if dt_to and sent_cmp > dt_to.replace(hour=23, minute=59, second=59):
                     continue
+            # text criteria — fold Arabic in both haystack and needle
             text = " ".join(filter(None, [
                 norm(subjects[i]), norm(bodies[i]), norm(atts[i]),
             ]))
+            if exclude_keywords and any(k in text for k in exclude_keywords):
+                continue
             if keywords:
                 hits = [k for k in keywords if k in text]
                 if match_all and len(hits) != len(keywords):
@@ -485,33 +591,35 @@ class EmailSearchDetector:
                 if not rx.search(raw_text):
                     continue
                 crit_hits.append(f"regex:{regex_q}")
-            if not (keywords or sender_q or rcpt_q or subj_q or cust_q or folder_q
-                    or att_q or rx or has_att is not None or after_hours
-                    or external_only or dt_from or dt_to):
-                # No criteria at all — refuse to dump the whole mailbox.
-                return DetectorResult(
-                    flagged=df.head(0),
-                    summary={"flagged_count": 0, "reason": "no_search_criteria"},
-                )
             flagged_idx.append(i)
             scores.append(PerRecordScore(keys[i], 1.0,
                                          "matched " + ("; ".join(crit_hits) or "filters")))
+            if max_results and len(flagged_idx) >= max_results:
+                break
 
-        mask = pl.Series(values=[i in set(flagged_idx) for i in range(df2.height)])
+        flagged_set = set(flagged_idx)
+        mask = pl.Series(values=[i in flagged_set for i in range(df2.height)])
         flagged = df2.filter(mask)
         return DetectorResult(
             flagged=flagged,
             summary={
                 "flagged_count": flagged.height,
+                "truncated": bool(max_results and len(flagged_idx) >= max_results),
                 "criteria": {
                     k: v for k, v in {
                         "keywords": keywords, "match_all_keywords": match_all,
-                        "sender_contains": sender_q, "recipient_contains": rcpt_q,
-                        "subject_contains": subj_q, "custodian": cust_q,
-                        "folder_contains": folder_q, "date_from": date_from,
+                        "exclude_keywords": exclude_keywords,
+                        "sender_contains": sender_q, "sender_in": sender_in,
+                        "recipient_contains": rcpt_q,
+                        "recipient_domain_in": rcpt_dom_in,
+                        "personal_recipients_only": personal_only,
+                        "subject_contains": subj_q,
+                        "exclude_subject_contains": excl_subj_q,
+                        "custodian": cust_q, "folder_contains": folder_q,
+                        "direction": direction_q, "date_from": date_from,
                         "date_to": date_to, "has_attachments": has_att,
                         "attachment_name_contains": att_q,
-                        "after_hours_only": after_hours,
+                        "after_hours_only": after_hours, "weekend_only": weekend_only,
                         "external_only": external_only, "regex": regex_q,
                     }.items() if v not in ("", [], None, False)
                 },

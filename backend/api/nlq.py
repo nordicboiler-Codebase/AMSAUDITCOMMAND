@@ -24,6 +24,11 @@ class TemplateGenIn(BaseModel):
     dataset_id: uuid.UUID | None = None
 
 
+class EmailSearchIn(BaseModel):
+    prompt: str
+    limit: int = 500
+
+
 def _friendly_error(e: Exception) -> str:
     return llm.humanise_provider_error(e)
 
@@ -40,6 +45,28 @@ def nl_query(dataset_id: uuid.UUID, body: NLQIn, db: Session = Depends(get_db),
              _rl: None = Depends(nlq_rate_limit)) -> dict:
     try:
         return nlq.nl_to_template(db, dataset_id=dataset_id, question=body.question, user_id=user.id)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=_friendly_error(e)) from e
+
+
+@router.post("/datasets/{dataset_id}/email-search")
+def email_search(dataset_id: uuid.UUID, body: EmailSearchIn,
+                 db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user),
+                 _rl: None = Depends(nlq_rate_limit)) -> dict:
+    """Natural-language deep search over a mailbox dataset.
+
+    The prompt is compiled by the active AI provider into a multi-clause
+    email_search plan, every clause is executed, and the matching messages are
+    returned directly (prompt in → emails out).
+    """
+    try:
+        return nlq.compile_and_run_email_search(
+            db, dataset_id=dataset_id, prompt=body.prompt, user_id=user.id,
+            limit=body.limit,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=_friendly_error(e)) from e
 

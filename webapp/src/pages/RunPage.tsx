@@ -157,6 +157,7 @@ export function RunPage() {
       {tab === "ai" && (
         <AiTab
           datasetId={datasetId}
+          subledger={activeDataset?.subledger_type}
           onPickTemplate={(code, params) => {
             setAiPrefill({ code, params });
             setTab("template");
@@ -179,12 +180,167 @@ export function RunPage() {
   );
 }
 
+// ----------- Email deep search — NL prompt compiled to a multi-clause query -----------
+
+interface EmailSearchMessage {
+  sent_at?: string;
+  custodian?: string;
+  direction?: string;
+  sender_email?: string;
+  all_recipients?: string;
+  subject?: string;
+  has_attachments?: boolean;
+  attachment_names?: string;
+  folder?: string;
+  match_reason?: string;
+}
+
+interface EmailSearchResult {
+  interpretation?: string;
+  rationale?: string;
+  combine?: string;
+  clauses?: Array<{ label: string; matched: number; params: Record<string, unknown> }>;
+  total?: number;
+  returned?: number;
+  messages?: EmailSearchMessage[];
+  error?: string;
+  raw?: string;
+}
+
+const EMAIL_SEARCH_EXAMPLES = [
+  "Emails from John Smith or anyone in finance sent to personal Gmail/Yahoo accounts between Jan and Mar 2026 that mention pricing, contracts, or customer lists — exclude newsletters",
+  "After-hours messages with attachments going to any external domain, in English or Arabic, about فاتورة or أسعار",
+  "Anything where a payroll or salary file was forwarded outside the company",
+];
+
+function EmailDeepSearch({ datasetId, providerName }: { datasetId: string; providerName: string }) {
+  const { toast } = useToast();
+  const [prompt, setPrompt] = useState("");
+
+  const search = useMutation({
+    mutationFn: () => api.post<EmailSearchResult>(
+      `/api/datasets/${datasetId}/email-search`, { prompt, limit: 500 },
+    ),
+    onError: (e) => toast({ kind: "error", title: "Search failed", description: (e as Error).message }),
+  });
+  const res = search.data;
+
+  return (
+    <SectionCard
+      title="Deep email search"
+      description={`Describe the emails you're hunting for in detail — ${providerName} compiles your prompt into a precise multi-clause query and returns the matching messages. Handles mixed English/Arabic.`}
+      actions={<AiStatusBadge />}
+    >
+      <textarea
+        className="w-full rounded-md border bg-card p-3 text-sm min-h-[90px] font-sans"
+        dir="auto"
+        placeholder="e.g. Emails from j.smith or a.khan to personal Gmail/Yahoo accounts in Q1 2026 with attachments, mentioning pricing / أسعار / customer lists, excluding automated newsletters"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        <Button onClick={() => search.mutate()} disabled={!prompt.trim() || search.isPending}>
+          <Search className="h-4 w-4" />
+          {search.isPending ? "Compiling & searching…" : "Search"}
+        </Button>
+        {EMAIL_SEARCH_EXAMPLES.map((ex, i) => (
+          <button
+            key={i}
+            onClick={() => setPrompt(ex)}
+            className="text-[11px] text-muted-foreground hover:text-foreground underline decoration-dotted"
+          >
+            example {i + 1}
+          </button>
+        ))}
+      </div>
+
+      {res && res.error && (
+        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {res.error}
+          {res.raw && <pre className="text-[11px] font-mono mt-2 max-h-40 overflow-auto">{res.raw}</pre>}
+        </div>
+      )}
+
+      {res && !res.error && (
+        <div className="mt-3 space-y-3">
+          <div className="rounded-md border border-accent/30 bg-accent/5 p-3">
+            <div className="text-sm" dir="auto">
+              <span className="font-semibold">Interpreted as:</span>{" "}
+              {res.interpretation || "(no interpretation returned)"}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {res.total} message(s) matched{res.combine ? ` · combined by ${res.combine}` : ""}
+              {typeof res.returned === "number" && res.returned < (res.total || 0)
+                ? ` · showing first ${res.returned}` : ""}
+            </div>
+            {res.clauses && res.clauses.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {res.clauses.map((c, i) => (
+                  <span
+                    key={i}
+                    title={JSON.stringify(c.params, null, 2)}
+                    className="text-[11px] rounded px-1.5 py-0.5 bg-secondary text-muted-foreground cursor-help"
+                  >
+                    {c.label}: {c.matched}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {res.messages && res.messages.length > 0 ? (
+            <div className="overflow-x-auto border rounded-md">
+              <table className="w-full text-xs">
+                <thead className="border-b bg-secondary/30 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="text-left font-semibold py-1.5 px-2">Date</th>
+                    <th className="text-left font-semibold py-1.5 px-2">Custodian</th>
+                    <th className="text-left font-semibold py-1.5 px-2">From</th>
+                    <th className="text-left font-semibold py-1.5 px-2">To</th>
+                    <th className="text-left font-semibold py-1.5 px-2">Subject</th>
+                    <th className="text-left font-semibold py-1.5 px-2">Why</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {res.messages.map((m, i) => (
+                    <tr key={i} className="hover:bg-secondary/20 align-top">
+                      <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground">
+                        {m.sent_at ? m.sent_at.slice(0, 16).replace("T", " ") : "—"}
+                      </td>
+                      <td className="py-1.5 px-2">{m.custodian}</td>
+                      <td className="py-1.5 px-2 font-mono">{m.sender_email}</td>
+                      <td className="py-1.5 px-2 font-mono truncate max-w-[160px]" title={m.all_recipients}>
+                        {m.all_recipients}
+                      </td>
+                      <td className="py-1.5 px-2 max-w-[220px] truncate" dir="auto" title={m.subject}>
+                        {m.has_attachments ? "📎 " : ""}{m.subject}
+                      </td>
+                      <td className="py-1.5 px-2 text-[10px] text-muted-foreground max-w-[200px]" dir="auto">
+                        {m.match_reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground italic py-2">
+              No messages matched. Try widening the prompt or removing a constraint.
+            </div>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 // ----------- AI tab — natural language + suggested templates -----------
 
 function AiTab({
-  datasetId, onPickTemplate,
+  datasetId, subledger, onPickTemplate,
 }: {
   datasetId: string;
+  subledger?: string;
   onPickTemplate: (code: string, params: Record<string, unknown>) => void;
 }) {
   const { toast } = useToast();
@@ -222,6 +378,9 @@ function AiTab({
   return (
     <div className="space-y-4">
       <AiOffBanner />
+      {subledger === "EMAIL" && (
+        <EmailDeepSearch datasetId={datasetId} providerName={providerName} />
+      )}
       <SectionCard
         title="Ask in plain English"
         description={`Describe what you want to test — ${providerName} will pick the best template from the catalog and pre-fill its parameters.`}

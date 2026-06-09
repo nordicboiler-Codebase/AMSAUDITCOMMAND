@@ -42,8 +42,10 @@ NEW_TEMPLATES = [
      "multiple employees communicate with — collusion / shared-conduit signal."),
     ("EM05", "Mailbox Search", "email_search",
      {}, "EMAIL", "ANALYTICAL", 0.5, ["email", "search"],
-     "Parameterised search across senders, recipients, keywords, dates, "
-     "attachments. The Ask-AI tab fills these parameters from plain English."),
+     "Arabic-aware parameterised search across senders, recipients, keywords, "
+     "dates, attachments, direction. The Ask-AI tab and the natural-language "
+     "Deep Email Search (POST /api/datasets/{id}/email-search) fill these "
+     "parameters from a plain-English or Arabic prompt."),
     ("EM06", "After-hours External Email", "email_search",
      {"external_only": True, "after_hours_only": True}, "EMAIL", "ANALYTICAL",
      1.0, ["email", "after-hours"],
