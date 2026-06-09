@@ -83,7 +83,16 @@ export function DatasetsPage() {
                         selected?.id === d.id ? "bg-secondary/50" : ""
                       }`}
                     >
-                      <td className="py-2 px-3 font-medium">{d.name}</td>
+                      <td className="py-2 px-3 font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{d.name}</span>
+                          {d.parquet_available === false && (
+                            <Badge tone="danger" title="Parquet file missing on backend — re-import to run tests.">
+                              stale
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-2 px-3">
                         <Badge tone="muted">{d.subledger_type.replace(/_/g, " ")}</Badge>
                       </td>

@@ -159,7 +159,18 @@ def preview(dataset_id: uuid.UUID, rows: int = 100, db: Session = Depends(get_db
     ds = db.get(Dataset, dataset_id)
     if not ds:
         raise HTTPException(status_code=404, detail="Not found")
-    df = pl.read_parquet(ds.parquet_path).head(rows)
+    try:
+        path = import_service.resolve_parquet_path(ds.parquet_path)
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                "Dataset parquet file is missing on the backend. "
+                "Re-import the dataset from the original source file. "
+                f"Details: {e}"
+            ),
+        ) from e
+    df = pl.read_parquet(path).head(rows)
     return {"columns": df.columns, "rows": df.to_dicts()}
 
 
@@ -193,4 +204,5 @@ def _ds_out(ds: Dataset) -> dict:
         "record_count": ds.record_count,
         "schema": ds.schema_json,
         "control_totals": ds.control_totals,
+        "parquet_available": import_service.parquet_available(ds.parquet_path),
     }

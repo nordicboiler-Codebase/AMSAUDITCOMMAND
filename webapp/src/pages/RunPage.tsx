@@ -122,6 +122,14 @@ export function RunPage() {
             <span className="font-mono">{activeDataset.subledger_type}</span> + universal.
           </div>
         )}
+        {activeDataset?.parquet_available === false && (
+          <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <strong>Parquet file missing for this dataset.</strong>{" "}
+            The data file on the backend can't be found (likely the environment was
+            rebuilt or the data volume was reset). Tests will fail until you re-import the dataset
+            from the original source file in the <em>Datasets</em> page.
+          </div>
+        )}
       </div>
 
       <div className="flex gap-1 border-b mb-4">

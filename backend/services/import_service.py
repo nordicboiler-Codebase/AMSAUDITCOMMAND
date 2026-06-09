@@ -197,3 +197,12 @@ def resolve_parquet_path(stored: str | Path) -> Path:
         "If you moved environments, re-import the dataset or copy the parquet "
         "file to the new parquet_dir."
     )
+
+
+def parquet_available(stored: str | Path) -> bool:
+    """Non-raising check used by API list/detail endpoints to flag stale rows."""
+    try:
+        resolve_parquet_path(stored)
+        return True
+    except FileNotFoundError:
+        return False

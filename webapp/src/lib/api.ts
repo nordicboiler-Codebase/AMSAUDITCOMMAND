@@ -174,6 +174,7 @@ export interface Dataset {
   source_hash: string;
   subledger_type: string;
   record_count: number;
+  parquet_available?: boolean;
 }
 
 export interface TestRun {
