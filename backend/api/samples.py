@@ -77,6 +77,21 @@ DESCRIPTIONS: dict[str, dict] = {
         "description": "8 rows — backdated sales, large discount, period-end spike",
         "suggested_pack": "REVENUE_STANDARD",
     },
+    "email_jsmith.mbox": {
+        "subledger_type": "EMAIL",
+        "title": "Mailbox — J. Smith",
+        "description": "6 messages — price list to own gmail, kickback contact, "
+                       "after-hours mail to competitor. Import together with A. Khan "
+                       "via 'Import mailboxes (PST)'.",
+        "suggested_pack": "EMAIL_INVESTIGATION",
+    },
+    "email_akhan.mbox": {
+        "subledger_type": "EMAIL",
+        "title": "Mailbox — A. Khan",
+        "description": "5 messages — payroll extract to personal yahoo, shares the "
+                       "same external gmail contact as J. Smith (collusion signal).",
+        "suggested_pack": "EMAIL_INVESTIGATION",
+    },
 }
 
 
@@ -105,8 +120,9 @@ def download_sample(filename: str, _u: User = Depends(get_current_user)) -> Resp
     path = SAMPLES_DIR / filename
     if not path.exists():
         raise HTTPException(status_code=410, detail="Sample missing on disk")
+    media = "text/csv" if filename.endswith(".csv") else "application/octet-stream"
     return Response(
         content=path.read_bytes(),
-        media_type="text/csv",
+        media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

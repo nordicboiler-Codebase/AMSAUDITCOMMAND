@@ -14,6 +14,7 @@ class SubledgerType(str, enum.Enum):
     PROCUREMENT = "PROCUREMENT"
     TE = "TE"
     SALES = "SALES"
+    EMAIL = "EMAIL"
     OTHER = "OTHER"
 
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Download, FileSearch, Play, Upload } from "lucide-react";
+import { Database, Download, FileSearch, Mail, Play, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,8 @@ import { formatNumber } from "@/lib/utils";
 
 const SUBLEDGERS = [
   "ACCOUNTS_PAYABLE", "ACCOUNTS_RECEIVABLE", "GENERAL_LEDGER", "PAYROLL",
-  "FIXED_ASSETS", "INVENTORY", "BANK", "PROCUREMENT", "TE", "SALES", "OTHER",
+  "FIXED_ASSETS", "INVENTORY", "BANK", "PROCUREMENT", "TE", "SALES",
+  "EMAIL", "OTHER",
 ];
 
 const CLASSIFICATIONS = ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"];
@@ -22,6 +23,7 @@ export function DatasetsPage() {
   const { activeProjectId } = useOutletContext<{ activeProjectId: string | null }>();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const [selected, setSelected] = useState<Dataset | null>(null);
 
   const { data: datasets = [] } = useQuery({
@@ -49,7 +51,14 @@ export function DatasetsPage() {
       <PageHeader
         title="Datasets"
         description="Raw source data, SHA-256 hashed on import, Fernet-encrypted at rest."
-        actions={<Button onClick={() => setOpen(true)}><Upload className="h-4 w-4" /> Import</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setEmailOpen(true)}>
+              <Mail className="h-4 w-4" /> Import mailboxes (PST)
+            </Button>
+            <Button onClick={() => setOpen(true)}><Upload className="h-4 w-4" /> Import</Button>
+          </div>
+        }
       />
 
       <SampleDownloads />
@@ -87,9 +96,9 @@ export function DatasetsPage() {
                         <div className="flex items-center gap-2">
                           <span>{d.name}</span>
                           {d.parquet_available === false && (
-                            <Badge tone="danger" title="Parquet file missing on backend — re-import to run tests.">
-                              stale
-                            </Badge>
+                            <span title="Parquet file missing on backend — re-import to run tests.">
+                              <Badge tone="danger">stale</Badge>
+                            </span>
                           )}
                         </div>
                       </td>
@@ -116,6 +125,16 @@ export function DatasetsPage() {
           onClose={() => setOpen(false)}
           onImported={() => {
             setOpen(false);
+            qc.invalidateQueries({ queryKey: ["datasets"] });
+          }}
+        />
+      )}
+      {emailOpen && (
+        <EmailImportDialog
+          projectId={activeProjectId}
+          onClose={() => setEmailOpen(false)}
+          onImported={() => {
+            setEmailOpen(false);
             qc.invalidateQueries({ queryKey: ["datasets"] });
           }}
         />
@@ -410,6 +429,144 @@ function ImportDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!name || !file || mutation.isPending}>
             {mutation.isPending ? "Uploading…" : "Import"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailImportDialog({
+  projectId, onClose, onImported,
+}: { projectId: string; onClose: () => void; onImported: () => void }) {
+  const [name, setName] = useState("");
+  const [classification, setClassification] = useState("CONFIDENTIAL");
+  const [description, setDescription] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [custodians, setCustodians] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  function addFiles(picked: FileList | null) {
+    if (!picked) return;
+    const next = [...files, ...Array.from(picked)];
+    setFiles(next);
+    setCustodians(next.map((f, i) => custodians[i] ?? f.name.replace(/\.[^.]+$/, "")));
+  }
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (files.length === 0) throw new Error("Pick at least one mailbox file");
+      const form = new FormData();
+      for (const f of files) form.append("files", f);
+      form.append("project_id", projectId);
+      form.append("name", name);
+      form.append("classification", classification);
+      form.append("custodians", custodians.join(","));
+      if (description) form.append("description", description);
+      return api.post<{ record_count: number; custodians: Record<string, number> }>(
+        "/api/datasets/import-email", form,
+      );
+    },
+    onSuccess: (r) => {
+      toast({
+        kind: "success",
+        title: `Imported ${r.record_count.toLocaleString()} messages`,
+        description: `Mailboxes: ${Object.keys(r.custodians).join(", ")}`,
+      });
+      onImported();
+    },
+    onError: (e) => setError((e as Error).message),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div className="w-full max-w-xl rounded-lg bg-card border shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b">
+          <h3 className="text-base font-semibold">Import mailboxes (PST)</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Attach one or more PST / mbox / .eml-zip files. They merge into a single EMAIL
+            dataset — one row per message, tagged with each mailbox owner (custodian) — so
+            leak detection and cross-employee pattern tests can run across all of them.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <Label>Dataset name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Mailbox review — Q2 2026" />
+          </div>
+          <div>
+            <Label>Classification</Label>
+            <Select value={classification} onChange={(e) => setClassification(e.target.value)}>
+              {CLASSIFICATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+          </div>
+          <div>
+            <Label>Mailbox files</Label>
+            <div
+              className="border-2 border-dashed border-border rounded-md p-6 text-center cursor-pointer hover:bg-secondary/30"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Mail className="h-6 w-6 mx-auto text-muted-foreground" />
+              <div className="text-sm mt-2">
+                {files.length > 0
+                  ? <span className="font-medium">{files.length} file(s) selected — click to add more</span>
+                  : "Click to pick PST / mbox / eml / zip files"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">.pst, .ost, .mbox, .eml, .zip of .eml</div>
+              <input
+                ref={fileRef} type="file" className="hidden" multiple
+                accept=".pst,.ost,.mbox,.eml,.zip"
+                onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
+              />
+            </div>
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  Custodian = the employee who owns each mailbox (used to correlate patterns
+                  between employees). Edit if the filename isn't the person's name.
+                </div>
+                {files.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2">
+                    <span className="text-xs font-mono truncate flex-1">{f.name}</span>
+                    <Input
+                      className="w-44"
+                      value={custodians[i] ?? ""}
+                      onChange={(e) => {
+                        const next = [...custodians];
+                        next[i] = e.target.value;
+                        setCustodians(next);
+                      }}
+                      placeholder="custodian"
+                    />
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => {
+                        setFiles(files.filter((_, j) => j !== i));
+                        setCustodians(custodians.filter((_, j) => j !== i));
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {error && <div className="text-sm text-destructive whitespace-pre-wrap">{error}</div>}
+        </div>
+        <div className="p-5 border-t flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!name || files.length === 0 || mutation.isPending}
+          >
+            {mutation.isPending ? "Parsing mailboxes…" : `Import ${files.length || ""} mailbox(es)`}
           </Button>
         </div>
       </div>

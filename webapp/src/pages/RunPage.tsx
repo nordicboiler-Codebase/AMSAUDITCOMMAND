@@ -74,6 +74,7 @@ export function RunPage() {
     queryKey: ["datasets", activeProjectId],
     queryFn: () => api.get<Array<{
       id: string; name: string; record_count: number; subledger_type: string;
+      parquet_available?: boolean;
     }>>(`/api/datasets${activeProjectId ? `?project_id=${activeProjectId}` : ""}`),
   });
 

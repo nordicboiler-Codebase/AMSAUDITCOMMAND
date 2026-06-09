@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY pyproject.toml /app/
-RUN pip install --upgrade pip && pip install -e .[dev]
+RUN pip install --upgrade pip && pip install -e .[dev] \
+    && (pip install libpff-python || echo "libpff-python unavailable — PST import disabled, mbox/eml still work")
 
 COPY . /app/
 

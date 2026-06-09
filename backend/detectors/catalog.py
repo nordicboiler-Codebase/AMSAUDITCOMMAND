@@ -52,6 +52,7 @@ def _ensure_loaded() -> None:
         composite,
         data_quality,
         duplicate_sequence,
+        email_forensics,
         embedding,
         ml,
         network,

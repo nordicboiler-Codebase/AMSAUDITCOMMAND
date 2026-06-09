@@ -25,6 +25,7 @@ done
 echo "==> [3/6] Installing Python dependencies"
 pip install -q -e ".[dev]"
 pip install -q "bcrypt<4.1"
+pip install -q libpff-python >/dev/null 2>&1 || echo "    (optional) libpff-python not installed — .pst import disabled, .mbox/.eml still work"
 
 export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg2://audit:audit@127.0.0.1:5432/audit}"
 export SECRET_KEY="${SECRET_KEY:-dev-secret-change-me}"

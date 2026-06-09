@@ -86,6 +86,91 @@ async def import_dataset(
     }
 
 
+@router.post("/import-email")
+async def import_email_dataset(
+    files: list[UploadFile] = File(...),
+    project_id: uuid.UUID = Form(...),
+    name: str = Form(...),
+    description: str | None = Form(None),
+    classification: str = Form("CONFIDENTIAL"),
+    custodians: str | None = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Import one or more mailbox files (.pst/.ost/.mbox/.eml/.zip of .eml)
+    as a single EMAIL dataset — one row per message, with a `custodian`
+    column per source file so cross-employee detectors can correlate.
+
+    `custodians` is an optional comma-separated list overriding the
+    per-file custodian names (defaults to each filename's stem).
+    """
+    from backend.services import email_ingest
+
+    acl.assert_permission(db, project_id=project_id, user=user, permission=acl.Permission.EDIT)
+    settings.ensure_dirs()
+    cust_overrides = [c.strip() for c in (custodians or "").split(",") if c.strip()]
+
+    staged: list[tuple[Path, str, str | None]] = []
+    encrypted_paths: list[str] = []
+    tmp_files: list[Path] = []
+    try:
+        for idx, up in enumerate(files):
+            raw = await up.read()
+            enc = settings.upload_dir / f"{uuid.uuid4()}_{up.filename}.enc"
+            enc.write_bytes(settings_store.encrypt_bytes(raw))
+            encrypted_paths.append(str(enc))
+            tmp = settings.upload_dir / f"tmp_{uuid.uuid4()}_{up.filename}"
+            tmp.write_bytes(raw)
+            tmp_files.append(tmp)
+            cust = cust_overrides[idx] if idx < len(cust_overrides) else None
+            staged.append((tmp, up.filename or tmp.name, cust))
+
+        try:
+            df = email_ingest.parse_mail_files(staged)
+        except email_ingest.PstSupportMissing as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        if df.height == 0:
+            raise HTTPException(status_code=422,
+                                detail="No messages could be parsed from the uploaded file(s).")
+
+        merged = email_ingest.write_merged_parquet(df, settings.upload_dir)
+        tmp_files.append(merged)
+        result = import_service.import_dataset(
+            db,
+            file_path=merged,
+            source_filename="; ".join(up.filename or "?" for up in files),
+            project_id=project_id,
+            name=name,
+            subledger_type=SubledgerType.EMAIL,
+            user_id=user.id,
+            description=description,
+            classification=classification,
+        )
+    finally:
+        for t in tmp_files:
+            try:
+                t.unlink()
+            except OSError:
+                pass
+
+    custodian_counts = (
+        df.group_by("custodian").len().sort("len", descending=True)
+    )
+    return {
+        "dataset_id": str(result.dataset_id),
+        "record_count": result.record_count,
+        "source_hash": result.source_hash,
+        "custodians": {
+            c: int(n) for c, n in
+            zip(custodian_counts["custodian"].to_list(), custodian_counts["len"].to_list())
+        },
+        "encrypted_source_paths": encrypted_paths,
+        "schema": result.schema,
+    }
+
+
 @router.get("/{dataset_id}")
 def get_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db),
                 user: User = Depends(get_current_user)) -> dict:

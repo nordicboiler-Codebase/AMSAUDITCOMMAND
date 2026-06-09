@@ -185,4 +185,9 @@ export interface TestRun {
   findings_count: number;
   started_at?: string;
   finished_at?: string;
+  params?: Record<string, unknown>;
+  input_hash?: string;
+  output_hash?: string;
+  summary?: Record<string, unknown>;
+  error_message?: string | null;
 }

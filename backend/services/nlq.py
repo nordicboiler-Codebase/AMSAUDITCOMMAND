@@ -28,6 +28,31 @@ Return ONLY valid JSON with this schema:
 
 Do not invent template codes that are not in the provided catalog."""
 
+EMAIL_NLQ_HINT = """
+EMAIL DATASET GUIDANCE (this dataset is an imported mailbox — one row per message):
+- Column meanings: custodian = mailbox owner (one per imported PST file);
+  sender_email/sender_domain; all_recipients = to+cc+bcc joined with "; ";
+  recipient_domains; subject; body_excerpt (first 4000 chars); has_attachments;
+  attachment_names; sent_at (UTC); is_after_hours (before 07:00 / after 20:00);
+  is_weekend; folder; direction (SENT/RECEIVED).
+- Search-style questions ("find mails from/to/about X", "show emails with
+  attachments to gmail in March") → choose the email_search template and fill
+  its params: keywords (list, matches subject+body+attachment names),
+  sender_contains, recipient_contains (substring OR a domain like "gmail.com"),
+  subject_contains, custodian, date_from/date_to (YYYY-MM-DD), has_attachments
+  (true/false/null), attachment_name_contains, after_hours_only, external_only,
+  regex.
+- "Leaked to personal ids / private email / gmail" → choose the email_dlp
+  template (optionally set require_attachment or require_keyword, or extend
+  sensitive_keywords with terms from the question).
+- "Patterns/connections between employees", "common contacts", "collusion"
+  across multiple mailboxes → choose the email_cross_custodian template.
+- Combine narrow user terms into params rather than dropping them: e.g.
+  "salary info sent to personal gmail" → email_dlp with
+  sensitive_keywords=["salary","payroll","compensation"] or email_search with
+  keywords=["salary"] and recipient_contains="gmail.com".
+"""
+
 
 def _get_client(db: Session):
     """Provider-agnostic client. Falls back to legacy env-based Anthropic."""
@@ -116,9 +141,10 @@ def nl_to_template(
         return result
 
     catalog_block = _build_catalog_block(db, dataset.subledger_type)
+    email_hint = EMAIL_NLQ_HINT if dataset.subledger_type.value == "EMAIL" else ""
     user_prompt = f"""DATASET CONTEXT:
 {_dataset_context(dataset)}
-
+{email_hint}
 TEMPLATE CATALOG:
 {catalog_block}
 
@@ -174,9 +200,10 @@ def suggest_templates(db: Session, *, dataset_id: uuid.UUID, user_id: uuid.UUID,
         f"category={t.category.value} | weight={t.default_weight}"
         for t in candidates
     )
+    email_hint = EMAIL_NLQ_HINT if dataset.subledger_type.value == "EMAIL" else ""
     user_prompt = f"""DATASET CONTEXT:
 {_dataset_context(dataset)}
-
+{email_hint}
 CANDIDATE TEMPLATES (only these are valid):
 {catalog_block}
 

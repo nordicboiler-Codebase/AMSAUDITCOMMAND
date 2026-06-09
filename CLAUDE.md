@@ -59,7 +59,7 @@ data/                # uploads, parquet, reports (gitignored)
 ## Enums (single source of truth — backend/models/enums.py)
 
 - `SubledgerType`: GENERAL_LEDGER, ACCOUNTS_PAYABLE, ACCOUNTS_RECEIVABLE, PAYROLL,
-  FIXED_ASSETS, INVENTORY, BANK, PROCUREMENT, TE, SALES, OTHER
+  FIXED_ASSETS, INVENTORY, BANK, PROCUREMENT, TE, SALES, EMAIL, OTHER
 - `UserRole`: ADMIN, AUDITOR, VIEWER
 - `DetectorCategory`: DATA_QUALITY, DUPLICATE_SEQUENCE, STATISTICAL, BENFORD_FRAUD,
   TEMPORAL, RELATIONAL, TEXT, ML, PREDICTIVE
@@ -210,6 +210,21 @@ enterprise controls are now in place:
 47. **Per-field data classification** — `field_sensitivities` table, API at
     `/api/datasets/{id}/field-sensitivity` to tag columns PII / FINANCIAL /
     CONFIDENTIAL / RESTRICTED / PUBLIC / INTERNAL.
+
+48. **Email investigation (PST forensics)** — `POST /api/datasets/import-email`
+    accepts multiple .pst/.ost/.mbox/.eml/.zip mailboxes, merges them into one
+    EMAIL-subledger dataset (one row per message, `custodian` column per file).
+    Parser: `services/email_ingest.py` (pypff for PST — optional `pip install
+    libpff-python`; mbox/eml via stdlib). Three detectors in
+    `detectors/email_forensics/`: `email_dlp` (leakage to personal/free email
+    accounts, self-exfiltration matching, sensitive keywords), 
+    `email_cross_custodian` (shared external contacts across employees —
+    collusion signal, needs 2+ mailboxes), `email_search` (parameterised search
+    — the Ask-AI NLQ target; `EMAIL_NLQ_HINT` in services/nlq.py teaches the
+    model to fill its params from plain English). Templates EM01–EM06 +
+    EMAIL_INVESTIGATION pack seeded in migration 0016 (adds EMAIL enum label
+    via autocommit block). Sample mailboxes `samples/email_*.mbox` with planted
+    leak/collusion signals; "Import mailboxes (PST)" dialog in the Datasets UI.
 
 Remaining Phase D+ candidates: Redis rate limiter for multi-host deployments,
 mobile/tablet responsive layout, AG Grid in Findings, advanced supervised-ML

@@ -79,8 +79,9 @@ def _infer_type(key: str, default: Any) -> str:
     if isinstance(default, float):
         return "float"
     if isinstance(default, list):
-        if key.endswith("_fields") or key.endswith("_values") or key in {"required_fields",
-                                                                        "keywords", "thresholds"}:
+        if key.endswith(("_fields", "_values", "_domains", "_keywords")) or key in {
+            "required_fields", "keywords", "thresholds",
+        }:
             return "string_list"
         return "list"
     if isinstance(default, dict):

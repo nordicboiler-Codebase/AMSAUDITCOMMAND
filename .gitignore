@@ -28,3 +28,4 @@ docs/screenshots/*.png
 *.swp
 
 *.log
+*.tsbuildinfo
