@@ -29,3 +29,6 @@ docs/screenshots/*.png
 
 *.log
 *.tsbuildinfo
+
+logs/
+data/_pg_dump.sql.gz

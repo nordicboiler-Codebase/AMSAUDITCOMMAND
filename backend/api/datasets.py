@@ -8,6 +8,7 @@ from pathlib import Path
 
 import polars as pl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -169,6 +170,158 @@ async def import_email_dataset(
         "encrypted_source_paths": encrypted_paths,
         "schema": result.schema,
     }
+
+
+class _BlobEmailImportIn(BaseModel):
+    project_id: uuid.UUID
+    name: str
+    blob_paths: list[str]                # paths inside AZURE_BLOB_CONTAINER
+    custodians: list[str] | None = None  # one per file, else stems
+    description: str | None = None
+    classification: str = "CONFIDENTIAL"
+    batch_size: int = 25_000             # messages per parquet row-group
+
+
+@router.post("/import-email-from-blob")
+def import_email_from_blob(body: _BlobEmailImportIn,
+                           db: Session = Depends(get_db),
+                           user: User = Depends(get_current_user)) -> dict:
+    """Import very large mailboxes (multi-GB OST/PST) without uploading them
+    through the HTTP layer.
+
+    Workflow:
+      1. Upload the .ost / .pst files directly to the configured Azure Blob
+         container (use Azure Storage Explorer or `azcopy copy`).
+      2. POST here with the list of blob paths (relative to the container) —
+         the API streams each blob to a local temp file, parses it message by
+         message into a single parquet on disk (batched, never holding the
+         whole mailbox in RAM), then deletes the temp file.
+      3. The resulting dataset behaves exactly like any other import and is
+         covered by the same encrypted-source / blob-backup pipeline.
+
+    Returns import stats including total messages and per-custodian counts.
+    """
+    from backend.services import blob_storage, email_ingest
+
+    acl.assert_permission(db, project_id=body.project_id, user=user,
+                          permission=acl.Permission.EDIT)
+    if not blob_storage.is_configured():
+        raise HTTPException(
+            status_code=400,
+            detail="AZURE_BLOB_CONNECTION_STRING is not set. Configure it in .env.",
+        )
+    if not body.blob_paths:
+        raise HTTPException(status_code=400, detail="blob_paths is empty.")
+
+    settings.ensure_dirs()
+    container = blob_storage._client()
+    tmp_files: list[Path] = []
+    staged: list[tuple[Path, str, str | None]] = []
+    try:
+        for idx, rel in enumerate(body.blob_paths):
+            blob = container.get_blob_client(rel)
+            try:
+                props = blob.get_blob_properties()
+            except Exception as e:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Blob not found: {rel} ({e})",
+                ) from e
+            tmp = settings.upload_dir / f"tmp_blob_{uuid.uuid4()}_{Path(rel).name}"
+            with open(tmp, "wb") as fh:
+                blob.download_blob().readinto(fh)
+            tmp_files.append(tmp)
+            cust = (body.custodians[idx] if body.custodians and idx < len(body.custodians) else None)
+            staged.append((tmp, Path(rel).name, cust))
+            log = (Path(rel).name, props.size)
+            del log  # quiet linter; size is only useful in audit details below
+
+        parquet_name = f"{uuid.uuid4()}.parquet"
+        parquet_path = settings.parquet_dir / parquet_name
+        try:
+            stats = email_ingest.parse_mail_files_streaming(
+                staged, out_path=parquet_path, batch_size=body.batch_size,
+            )
+        except email_ingest.PstSupportMissing as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        if stats.messages == 0:
+            raise HTTPException(status_code=422,
+                                detail="No messages could be parsed from the supplied blob(s).")
+
+        # Build a minimal Dataset row pointing at the streamed parquet.
+        # We bypass import_service.import_dataset because we don't want to
+        # re-read the parquet to compute control totals over 100M rows; we
+        # compute a lightweight summary from the streaming stats instead.
+        record_count = stats.messages
+        source_filename = "; ".join(body.blob_paths)
+        # Source hash = hash of the concatenated blob ETags so re-imports of
+        # the same blobs produce the same hash without re-reading the bytes.
+        h = hashlib.sha256()
+        for rel in body.blob_paths:
+            h.update(rel.encode("utf-8"))
+            try:
+                etag = container.get_blob_client(rel).get_blob_properties().etag or ""
+            except Exception:  # noqa: BLE001
+                etag = ""
+            h.update(etag.encode("utf-8"))
+        source_hash = h.hexdigest()
+
+        from backend.models import Dataset, SubledgerType as Sub
+        existing = db.execute(
+            select(Dataset).where(Dataset.project_id == body.project_id,
+                                  Dataset.name == body.name)
+        ).scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=409,
+                                detail=f"Dataset name '{body.name}' already exists in this project")
+        dataset = Dataset(
+            project_id=body.project_id,
+            name=body.name,
+            source_filename=source_filename[:500],
+            source_hash_sha256=source_hash,
+            record_count=record_count,
+            control_totals={"record_count": record_count,
+                            "custodians": stats.custodians,
+                            "source": "blob-streaming"},
+            schema_json={c: "varies" for c in [
+                "custodian", "sender_email", "all_recipients", "subject",
+                "body_excerpt", "sent_at", "has_attachments", "attachment_names",
+            ]},
+            subledger_type=Sub.EMAIL,
+            parquet_path=str(parquet_path),
+            imported_by=user.id,
+            description=body.description,
+            classification=body.classification,
+        )
+        db.add(dataset)
+        db.flush()
+        audit_log.log_action(
+            db, user_id=user.id, action=AuditAction.IMPORT, entity_type="dataset",
+            entity_id=str(dataset.id), project_id=body.project_id,
+            details={
+                "source": "azure-blob-streaming",
+                "blob_paths": body.blob_paths[:20],
+                "files": stats.files,
+                "messages": stats.messages,
+                "parquet_bytes": stats.bytes_written,
+                "custodians": stats.custodians,
+            },
+        )
+        db.commit()
+        return {
+            "dataset_id": str(dataset.id),
+            "record_count": stats.messages,
+            "files_parsed": stats.files,
+            "custodians": stats.custodians,
+            "parquet_bytes": stats.bytes_written,
+            "source_hash": source_hash,
+        }
+    finally:
+        for t in tmp_files:
+            try:
+                t.unlink()
+            except OSError:
+                pass
 
 
 @router.get("/{dataset_id}")

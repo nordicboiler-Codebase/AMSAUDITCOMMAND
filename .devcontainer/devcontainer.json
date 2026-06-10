@@ -11,8 +11,8 @@
     "8501": { "label": "UI (Streamlit)", "onAutoForward": "openBrowser" },
     "5432": { "label": "Postgres", "onAutoForward": "silent" }
   },
-  "postCreateCommand": "./scripts/bootstrap.sh",
-  "postStartCommand": "docker compose up -d db",
+  "postCreateCommand": "./go",
+  "postStartCommand": "./go",
   "remoteEnv": {
     "DATABASE_URL": "postgresql+psycopg2://audit:audit@127.0.0.1:5432/audit",
     "SECRET_KEY": "dev-secret-change-me",

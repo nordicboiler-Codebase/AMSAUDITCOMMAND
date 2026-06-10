@@ -24,6 +24,7 @@ import mailbox
 import re
 import uuid
 import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email import policy
 from email.header import decode_header, make_header
@@ -402,3 +403,101 @@ def write_merged_parquet(df: pl.DataFrame, staging_dir: Path) -> Path:
     out = staging_dir / f"email_{uuid.uuid4()}.parquet"
     df.write_parquet(out)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Streaming parser — for large (multi-GB) PST/OST archives
+# ---------------------------------------------------------------------------
+
+def _file_row_iter(path: Path, *, source_name: str | None,
+                   custodian: str | None) -> Iterator[dict[str, Any]]:
+    """Yield rows lazily for one mailbox file. Used by the streaming path so
+    we never hold the full mailbox in memory."""
+    display = source_name or path.name
+    cust = (custodian or Path(display).stem).strip()
+    suffix = Path(display).suffix.lower() or path.suffix.lower()
+    if suffix in (".pst", ".ost"):
+        yield from _pst_rows(path, cust)
+    elif suffix == ".mbox":
+        yield from _mbox_rows(path, cust)
+    elif suffix == ".eml":
+        yield from _eml_rows(path, cust)
+    elif suffix == ".zip":
+        yield from _zip_rows(path, cust)
+    else:
+        raise ValueError(
+            f"Unsupported mailbox format '{suffix}'. "
+            f"Supported: {', '.join(SUPPORTED_SUFFIXES)}"
+        )
+
+
+@dataclass
+class StreamingParseStats:
+    files: int = 0
+    messages: int = 0
+    bytes_written: int = 0
+    custodians: dict[str, int] = field(default_factory=dict)
+
+
+def parse_mail_files_streaming(
+    files: list[tuple[Path, str, str | None]],
+    *,
+    out_path: Path,
+    batch_size: int = 25_000,
+) -> StreamingParseStats:
+    """Stream-parse one or more mailbox files into a single Parquet at
+    ``out_path`` without ever holding more than ``batch_size`` messages in RAM.
+
+    Each batch becomes a row-group in the output Parquet, so detectors can
+    later memory-map the result lazily.
+
+    Designed for the multi-GB case (50 GB OST × 6 → 300 GB raw). The PST/OST
+    itself still needs to be on local disk because libpff seeks within the file;
+    streaming applies to the Polars/DataFrame side.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    arrow_schema = pa.schema([
+        ("custodian", pa.string()), ("folder", pa.string()),
+        ("direction", pa.string()), ("message_id", pa.string()),
+        ("in_reply_to", pa.string()),
+        ("sent_at", pa.timestamp("us", tz="UTC")),
+        ("sent_hour", pa.int64()), ("is_after_hours", pa.bool_()),
+        ("is_weekend", pa.bool_()),
+        ("sender_name", pa.string()), ("sender_email", pa.string()),
+        ("sender_domain", pa.string()),
+        ("recipients_to", pa.string()), ("recipients_cc", pa.string()),
+        ("recipients_bcc", pa.string()),
+        ("all_recipients", pa.string()), ("recipient_domains", pa.string()),
+        ("recipient_count", pa.int64()), ("subject", pa.string()),
+        ("body_excerpt", pa.string()), ("body_length", pa.int64()),
+        ("attachment_count", pa.int64()), ("has_attachments", pa.bool_()),
+        ("attachment_names", pa.string()),
+    ])
+    stats = StreamingParseStats()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    writer = pq.ParquetWriter(str(out_path), arrow_schema, compression="zstd")
+    buf: list[dict[str, Any]] = []
+
+    def flush() -> None:
+        if not buf:
+            return
+        table = pa.Table.from_pylist(buf, schema=arrow_schema)
+        writer.write_table(table)
+        stats.bytes_written = out_path.stat().st_size
+        buf.clear()
+
+    try:
+        for (p, original, cust) in files:
+            stats.files += 1
+            for row in _file_row_iter(p, source_name=original, custodian=cust):
+                buf.append(row)
+                stats.messages += 1
+                stats.custodians[row["custodian"]] = stats.custodians.get(row["custodian"], 0) + 1
+                if len(buf) >= batch_size:
+                    flush()
+        flush()
+    finally:
+        writer.close()
+    return stats
